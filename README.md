@@ -154,13 +154,3 @@ module,hazard,metric_name,description,unit,aggregation_method,source_notes
 ```
 
 This file should make it clear what each output column means and how it was calculated.
-
-## Current Development Plan
-
-1. Create the initial repository structure.
-2. Add this README and document the expected workflow.
-3. Add a minimal `.gitignore` and project environment file.
-4. Add the `KEN` boundary data.
-5. Build the first `KEN` context metrics notebook.
-6. Export and inspect the first context metrics CSV.
-7. Add the first `KEN` flooding risk module once the basic pattern is working.
