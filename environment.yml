@@ -1,0 +1,11 @@
+name: tooling
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - jupyter notebook
+  - numpy
+  - pandas
+  - geopandas
+  - rasterio
+  - rasterstats
