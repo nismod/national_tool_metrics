@@ -3,7 +3,9 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - jupyter notebook
+  - jupyter
+  - notebook
+  - notebook
   - numpy
   - pandas
   - geopandas
