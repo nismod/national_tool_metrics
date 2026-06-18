@@ -2,20 +2,9 @@ module,hazard,metric_name,description,unit,aggregation_method,source_notes
 context,none,pop_total,Total population within the administrative region,people,Zonal sum of total population raster,WorldPop 2025 constrained 1km total population raster
 context,none,pop_female,Total female population within the administrative region,people,Zonal sum across all female age-band rasters,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_male,Total male population within the administrative region,people,Zonal sum across all male age-band rasters,WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_under_5,Population aged under 5 years within the administrative region,people,"Zonal sum of total age bands 00 and 01",WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_children_0_14,Population aged 0-14 years within the administrative region,people,"Zonal sum of total age bands 00, 01, 05, and 10",WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_youth_15_24,Population aged 15-24 years within the administrative region,people,"Zonal sum of total age bands 15 and 20",WorldPop 2025 constrained 1km age-sex rasters
+context,none,pop_under_5,Population aged under 5 years within the administrative region,people,Zonal sum of total age bands 00 and 01,WorldPop 2025 constrained 1km age-sex rasters
+context,none,pop_school_children_5_14,Population aged 5-14 years within the administrative region,people,"Zonal sum of total age bands 05 and 10",WorldPop 2025 constrained 1km age-sex rasters
+context,none,pop_youth_15_24,Population aged 15-24 years within the administrative region,people,Zonal sum of total age bands 15 and 20,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_working_age_15_64,Population aged 15-64 years within the administrative region,people,Zonal sum of total 5-year age bands from 15 to 60,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_older_65_plus,Population aged 65 years and older within the administrative region,people,Zonal sum of total 5-year age bands from 65 to 90,WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_female_15_49,Female population aged 15-49 years within the administrative region,people,Zonal sum of female 5-year age bands from 15 to 45,WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_female_65_plus,Female population aged 65 years and older within the administrative region,people,Zonal sum of female 5-year age bands from 65 to 90,WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_male_65_plus,Male population aged 65 years and older within the administrative region,people,Zonal sum of male 5-year age bands from 65 to 90,WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_female_pct,Female share of total population within the administrative region,percent,pop_female divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_male_pct,Male share of total population within the administrative region,percent,pop_male divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_under_5_pct,Share of total population aged under 5 years within the administrative region,percent,pop_under_5 divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_children_0_14_pct,Share of total population aged 0-14 years within the administrative region,percent,pop_children_0_14 divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_youth_15_24_pct,Share of total population aged 15-24 years within the administrative region,percent,pop_youth_15_24 divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_working_age_15_64_pct,Share of total population aged 15-64 years within the administrative region,percent,pop_working_age_15_64 divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_older_65_plus_pct,Share of total population aged 65 years and older within the administrative region,percent,pop_older_65_plus divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_female_15_49_pct,Share of total population made up of females aged 15-49 years within the administrative region,percent,pop_female_15_49 divided by pop_total multiplied by 100,Derived from WorldPop 2025 population metrics
-context,none,pop_dependency_ratio,Age dependency ratio within the administrative region,dependents per 100 working-age people,"pop_children_0_14 plus pop_older_65_plus, divided by pop_working_age_15_64, multiplied by 100",Derived from WorldPop 2025 population metrics
+context,none,pop_female_childbearing_15_49,Female population aged 15-49 years within the administrative region,people,Zonal sum of female 5-year age bands from 15 to 45,WorldPop 2025 constrained 1km age-sex rasters
