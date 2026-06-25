@@ -18,3 +18,10 @@ context,none,pop_rwi_q5,Population in the highest national population-weighted R
 context,none,capstock_non_residential,Total non-residential capital stock within the administrative region,USD,Zonal sum of non-residential capital stock raster,Capital stock raster
 context,none,capstock_residential,Total residential capital stock within the administrative region,USD,Zonal sum of residential capital stock raster,Capital stock raster
 context,none,capstock_infrastructure,Total infrastructure capital stock within the administrative region,USD,Zonal sum of infrastructure capital stock raster,Capital stock raster
+context,none,road_length_motorway_km,Motorway road network length within the administrative region,kilometres,Length of road lines clipped to administrative boundaries and summed by road asset type,Road network GeoPackage
+context,none,road_length_primary_km,Primary road network length within the administrative region,kilometres,Length of road lines clipped to administrative boundaries and summed by road asset type,Road network GeoPackage
+context,none,road_length_secondary_km,Secondary road network length within the administrative region,kilometres,Length of road lines clipped to administrative boundaries and summed by road asset type,Road network GeoPackage
+context,none,road_length_tertiary_km,Tertiary road network length within the administrative region,kilometres,Length of road lines clipped to administrative boundaries and summed by road asset type,Road network GeoPackage
+context,none,road_length_trunk_km,Trunk road network length within the administrative region,kilometres,Length of road lines clipped to administrative boundaries and summed by road asset type,Road network GeoPackage
+context,none,rail_length_km,Rail network length within the administrative region,kilometres,Length of rail lines clipped to administrative boundaries and summed,Rail network GeoPackage
+context,none,power_transmission_length_km,Power transmission network length within the administrative region,kilometres,Length of power transmission lines clipped to administrative boundaries and summed,Power network GeoPackage
