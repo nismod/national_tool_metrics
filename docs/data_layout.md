@@ -45,7 +45,7 @@ data/
             river_flood/
             tropical_cyclone/
           indirect/
-            river_flood/
+            tropical_cyclone/
         social_infrastructure/
 
     global/
@@ -103,7 +103,7 @@ skeleton and configuration, but not the local datasets or generated CSVs.
 | Risk | Socioeconomic flood risk | `KEN/socioeconomic/flooding` | `KEN/risk/socioeconomic/river_flood` |
 | Risk | Direct river-flood network risk | `KEN/infrastructure/flooding` | `KEN/risk/infrastructure_networks/direct/river_flood` |
 | Risk | Direct cyclone network risk | `KEN/infrastructure/tc` | `KEN/risk/infrastructure_networks/direct/tropical_cyclone` |
-| Risk | Indirect network risk | `KEN/service_disruption/flooding` | `KEN/risk/infrastructure_networks/indirect/river_flood` |
+| Risk | Indirect network risk | Existing source to be confirmed | `KEN/risk/infrastructure_networks/indirect/tropical_cyclone` |
 | Adaptation Options | Nature-based solutions | `global` | `global/adaptation_options/nature_based_solutions` |
 
 The existing road, rail, and power risk files also provide the geometries used
