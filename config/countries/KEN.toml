@@ -1,0 +1,52 @@
+[country]
+iso3 = "KEN"
+name = "Kenya"
+# Change this value to "adm0", "adm1", or "adm2" to select the output level.
+admin_level = "adm1"
+
+[boundaries]
+id_field = "shapeID"
+name_field = "shapeName"
+
+[sources]
+worldpop_dir = "data/raw/KEN/context/worldpop"
+rwi_dir = "data/raw/KEN/context/rwi"
+capital_stock_dir = "data/raw/KEN/context/capital_stock"
+accessibility_dir = "data/raw/KEN/context/accessibility"
+adaptation_options_dir = "data/raw/global"
+road_network = "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg"
+rail_network = "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg"
+power_network = "data/raw/KEN/infrastructure/tc/power.gpkg"
+
+[parameters]
+worldpop_year = 2025
+max_rwi_distance_m = 5000
+max_coastal_assignment_distance_m = 5000
+
+[risk_runs.jrc_river_flood_baseline]
+hazard = "river_flood"
+scenario = "baseline"
+
+[risk_runs.jrc_river_flood_baseline.inputs]
+population_risk = "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_jrc_population_risk_metrics.gpkg"
+capital_stock_aal = "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock.gpkg"
+road_damage = "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg"
+rail_damage = "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg"
+
+[risk_runs.jrc_river_flood_baseline.layers]
+population_risk = "KEN_ADM1_jrc_population_risk_metrics"
+capital_stock_aal = "KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock"
+
+[risk_runs.jrc_river_flood_baseline.columns]
+road_ead = "hazard-floodMapGL_EAD"
+rail_ead = "hazard-floodMapGL_EAD"
+
+[risk_runs.storm_tropical_cyclone_baseline_2020]
+hazard = "tropical_cyclone"
+scenario = "baseline"
+
+[risk_runs.storm_tropical_cyclone_baseline_2020.inputs]
+power_damage = "data/raw/KEN/infrastructure/tc/power.gpkg"
+
+[risk_runs.storm_tropical_cyclone_baseline_2020.columns]
+power_ead = "ead__cyclone__rcp_baseline__epoch_2020"
