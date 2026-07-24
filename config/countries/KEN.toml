@@ -9,14 +9,44 @@ id_field = "shapeID"
 name_field = "shapeName"
 
 [sources]
-worldpop_dir = "data/raw/KEN/context/worldpop"
-rwi_dir = "data/raw/KEN/context/rwi"
-capital_stock_dir = "data/raw/KEN/context/capital_stock"
-accessibility_dir = "data/raw/KEN/context/accessibility"
-adaptation_options_dir = "data/raw/global"
-road_network = "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg"
-rail_network = "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg"
-power_network = "data/raw/KEN/infrastructure/tc/power.gpkg"
+# During the staged migration, the first populated path is selected.
+worldpop_dir = [
+  "data/raw/KEN/exposure/population/worldpop",
+  "data/raw/KEN/context/worldpop",
+]
+capital_stock_dir = [
+  "data/raw/KEN/exposure/capital_stock",
+  "data/raw/KEN/context/capital_stock",
+]
+facility_dir = [
+  "data/raw/KEN/exposure/facilities",
+  "data/raw/KEN/context/accessibility",
+]
+road_network = [
+  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg",
+  "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg",
+]
+rail_network = [
+  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg",
+  "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg",
+]
+power_network = [
+  "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg",
+  "data/raw/KEN/infrastructure/tc/power.gpkg",
+]
+rwi_dir = [
+  "data/raw/KEN/vulnerability/relative_wealth_index",
+  "data/raw/KEN/context/rwi",
+]
+wealth_distribution_dir = "data/raw/KEN/vulnerability/wealth_distribution"
+accessibility_dir = [
+  "data/raw/KEN/vulnerability/accessibility",
+  "data/raw/KEN/context/accessibility",
+]
+adaptation_options_dir = [
+  "data/raw/global/adaptation_options/nature_based_solutions",
+  "data/raw/global",
+]
 
 [parameters]
 worldpop_year = 2025
@@ -28,10 +58,22 @@ hazard = "river_flood"
 scenario = "baseline"
 
 [risk_runs.jrc_river_flood_baseline.inputs]
-population_risk = "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_jrc_population_risk_metrics.gpkg"
-capital_stock_aal = "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock.gpkg"
-road_damage = "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg"
-rail_damage = "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg"
+population_risk = [
+  "data/raw/KEN/risk/socioeconomic/river_flood/KEN_ADM1_jrc_population_risk_metrics.gpkg",
+  "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_jrc_population_risk_metrics.gpkg",
+]
+capital_stock_aal = [
+  "data/raw/KEN/risk/socioeconomic/river_flood/KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock.gpkg",
+  "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock.gpkg",
+]
+road_damage = [
+  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg",
+  "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg",
+]
+rail_damage = [
+  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg",
+  "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg",
+]
 
 [risk_runs.jrc_river_flood_baseline.layers]
 population_risk = "KEN_ADM1_jrc_population_risk_metrics"
@@ -46,7 +88,10 @@ hazard = "tropical_cyclone"
 scenario = "baseline"
 
 [risk_runs.storm_tropical_cyclone_baseline_2020.inputs]
-power_damage = "data/raw/KEN/infrastructure/tc/power.gpkg"
+power_damage = [
+  "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg",
+  "data/raw/KEN/infrastructure/tc/power.gpkg",
+]
 
 [risk_runs.storm_tropical_cyclone_baseline_2020.columns]
 power_ead = "ead__cyclone__rcp_baseline__epoch_2020"

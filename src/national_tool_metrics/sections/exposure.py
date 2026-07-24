@@ -214,7 +214,7 @@ def build_facility_metrics(
     admin_regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     """Build the Hospitals and Schools exposure cards."""
-    directory = config.source("accessibility_dir")
+    directory = config.source("facility_dir")
     admin_level = config.country.admin_level.upper()
     country_iso3 = config.country.iso3
     summaries = {

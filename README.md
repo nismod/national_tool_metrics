@@ -2,11 +2,17 @@
 
 This repository provides a simple workflow for converting OPSIS risk model outputs and context datasets into standardized sub-national metrics for an interactive national tool.
 
+The repository is being migrated to the tool's six-section structure:
+Hazard, Exposure, Vulnerability, Risk, Adaptation Options, and Adaptation
+Analysis. See [`docs/data_layout.md`](docs/data_layout.md) for the target
+folder structure, compatibility behaviour, and staged move sequence. Legacy
+input folders remain temporarily so existing notebooks continue to work.
+
 The aim is to keep the process lightweight and repeatable:
 
 1. Store country boundary layers in a consistent structure.
-2. Store raw input data by country, analysis module, and hazard where relevant.
-3. Use one notebook per analysis module to summarize inputs to administrative regions.
+2. Store raw input data by country and tool section.
+3. Use one notebook per tool section to summarize inputs to administrative regions.
 4. Export clean CSV files with one row per sub-national region and one column per metric.
 
 Country folders should use ISO3 codes. The first test country is `KEN`. The first hazard for the risk modules is flooding, but the folder structure is designed to allow additional hazards later.
@@ -24,13 +30,11 @@ national_tool_metrics/
 
     raw/
       KEN/
-        context/
-        socioeconomic/
-          flooding/
-        infrastructure/
-          flooding/
-        service_disruption/
-          flooding/
+        exposure/
+        vulnerability/
+        risk/
+      global/
+        adaptation_options/
 
   notebooks/
 
@@ -38,39 +42,26 @@ national_tool_metrics/
 
   results/
     KEN/
-      context/
-      socioeconomic/
-        flooding/
-      infrastructure/
-        flooding/
-      service_disruption/
-        flooding/
+      hazard/
+      exposure/
+      vulnerability/
+      risk/
+      adaptation_options/
+      adaptation_analysis/
 
   docs/
 ```
 
-## Analysis Modules
+## Tool Sections
 
-The current planned modules are:
+The tool sections are:
 
-- `context`: non-risk data such as population, demographics, wealth, infrastructure, and nature-based solutions.
-- `socioeconomic`: socioeconomic risk metrics derived from model outputs.
-- `infrastructure`: infrastructure exposure, damage, or loss metrics derived from model outputs.
-- `service_disruption`: service disruption metrics derived from model outputs.
-
-Risk modules are organized by hazard. For example:
-
-```text
-data/raw/KEN/socioeconomic/flooding/
-```
-
-Future hazards can be added using the same pattern:
-
-```text
-data/raw/KEN/socioeconomic/tropical_cyclone/
-data/raw/KEN/infrastructure/tropical_cyclone/
-data/raw/KEN/service_disruption/tropical_cyclone/
-```
+- `hazard`: physical hazard characteristics; scope to be agreed.
+- `exposure`: population, demographics, capital stock, networks, and facilities.
+- `vulnerability`: relative wealth, wealth distribution, and baseline accessibility.
+- `risk`: socioeconomic, infrastructure-network, and social-infrastructure risk.
+- `adaptation_options`: available interventions and opportunity locations.
+- `adaptation_analysis`: outcomes and comparisons; scope to be agreed.
 
 ## Boundary Data
 
@@ -92,11 +83,11 @@ Each boundary layer should include a stable administrative identifier that can b
 
 ## Notebook Workflow
 
-Each analysis module should have one notebook in `notebooks/`.
+Each implemented tool section should have one notebook in `notebooks/`.
 
 The notebooks should follow the same broad pattern:
 
-1. Set the country, administrative level, module, and hazard if relevant.
+1. Load the country configuration and administrative level.
 2. Load the relevant boundary layer.
 3. Load the raw input data.
 4. Clean and standardize input columns.
@@ -104,13 +95,15 @@ The notebooks should follow the same broad pattern:
 6. Create metric columns.
 7. Export a standardized CSV to `results/`.
 
-Example notebook names:
+Target notebook names:
 
 ```text
-notebooks/01_context_metrics.ipynb
-notebooks/02_socioeconomic_risk_metrics.ipynb
-notebooks/03_infrastructure_risk_metrics.ipynb
-notebooks/04_service_disruption_risk_metrics.ipynb
+notebooks/01_hazard_metrics.ipynb
+notebooks/02_exposure_metrics.ipynb
+notebooks/03_vulnerability_metrics.ipynb
+notebooks/04_risk_metrics.ipynb
+notebooks/05_adaptation_options_metrics.ipynb
+notebooks/06_adaptation_analysis_metrics.ipynb
 ```
 
 ## Output Format
@@ -125,8 +118,10 @@ country_name
 admin_level
 adm_id
 adm_name
-module
+section
 hazard
+scenario
+model_run
 ```
 
 These should be followed by the metric columns created by the notebook.
@@ -134,7 +129,7 @@ These should be followed by the metric columns created by the notebook.
 Example output path:
 
 ```text
-results/KEN/socioeconomic/flooding/KEN_adm2_socioeconomic_flooding_metrics.csv
+results/KEN/risk/KEN_adm2_risk_metrics.csv
 ```
 
 For the `context` module, use `hazard = none` or omit the hazard column if the downstream tool does not need it.
