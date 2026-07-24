@@ -90,6 +90,27 @@ source.
 Raw and generated data are ignored by Git. GitHub records the directory
 skeleton and configuration, but not the local datasets or generated CSVs.
 
+## Exposure WorldPop rasters
+
+The Exposure Population card uses pre-aggregated 90 m WorldPop rasters in:
+
+```text
+data/raw/<ISO3>/exposure/population/worldpop/
+```
+
+The required filenames are:
+
+```text
+<ISO3>_worldpop_total.tif
+<ISO3>_worldpop_female.tif
+<ISO3>_worldpop_male.tif
+<ISO3>_worldpop_children_under5.tif
+<ISO3>_worldpop_school-age_5-14.tif
+<ISO3>_worldpop_working-age_15-64.tif
+<ISO3>_worldpop_older_65plus.tif
+<ISO3>_worldpop_female_15-49.tif
+```
+
 ## Planned migration sequence
 
 | Stage | Source | Legacy location | Target location |
@@ -111,13 +132,35 @@ by the Exposure workflow. They live under Risk in the target layout and are
 referenced by Exposure through the country configuration, avoiding duplicate
 copies.
 
-## Precomputed wealth distribution
+## Precomputed Vulnerability summaries
 
-The precomputed administrative wealth-distribution input should be added to:
+Precomputed Relative Wealth Index summaries use:
+
+```text
+data/raw/KEN/vulnerability/relative_wealth_index/
+  <ISO3>_rwi_summary_<ADMIN-LEVEL>.gpkg
+```
+
+with layer name `<ISO3>_rwi_summary_<ADMIN-LEVEL>` and columns:
+
+```text
+shapeID
+shapeName
+average_rwi
+population_weighted_rwi
+```
+
+Precomputed wealth-distribution summaries use:
 
 ```text
 data/raw/KEN/vulnerability/wealth_distribution/
+  <ISO3>_pop_wealth_summary_<ADMIN-LEVEL>.gpkg
 ```
 
-Its filename and schema will be added to the country configuration when the
-dataset is available.
+with layer name `<ISO3>_pop_wealth_summary_<ADMIN-LEVEL>` and columns
+`shapeID`, `shapeName`, and `q1_total` through `q5_total`.
+
+The pipeline requires complete administrative coverage, unique identifiers,
+finite values, and nonnegative quintile populations. Small regional
+differences between the sum of quintiles and the independently aggregated
+Exposure population are accepted.

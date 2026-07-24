@@ -31,31 +31,10 @@ class ExposureMetricTests(unittest.TestCase):
     @patch(
         "national_tool_metrics.sections.exposure.zonal_raster_sum"
     )
-    @patch(
-        "national_tool_metrics.sections.exposure.find_single_raster"
-    )
-    @patch(
-        "national_tool_metrics.sections.exposure._worldpop_inventory"
-    )
-    def test_population_contains_agreed_demographics_without_youth(
+    def test_population_uses_90m_aggregated_demographic_rasters(
         self,
-        inventory_mock,
-        total_raster_mock,
         zonal_sum_mock,
     ) -> None:
-        ages = [0, 1, *range(5, 95, 5)]
-        inventory_mock.return_value = pd.DataFrame(
-            [
-                {
-                    "sex": sex,
-                    "age_start": age,
-                    "path": Path(f"{sex}_{age:02}.tif"),
-                }
-                for sex in ("f", "m", "t")
-                for age in ages
-            ]
-        )
-        total_raster_mock.return_value = Path("total_population.tif")
         zonal_sum_mock.return_value = pd.Series(
             [10.0, 20.0],
             index=self.admin_regions.index,
@@ -79,6 +58,22 @@ class ExposureMetricTests(unittest.TestCase):
         }
         self.assertEqual(set(metrics.columns), expected_columns)
         self.assertNotIn("pop_youth_15_24", metrics.columns)
+        raster_names = {
+            call.args[0].name for call in zonal_sum_mock.call_args_list
+        }
+        self.assertEqual(
+            raster_names,
+            {
+                "KEN_worldpop_total.tif",
+                "KEN_worldpop_female.tif",
+                "KEN_worldpop_male.tif",
+                "KEN_worldpop_children_under5.tif",
+                "KEN_worldpop_school-age_5-14.tif",
+                "KEN_worldpop_working-age_15-64.tif",
+                "KEN_worldpop_older_65plus.tif",
+                "KEN_worldpop_female_15-49.tif",
+            },
+        )
 
     def test_complete_exposure_output_uses_seven_card_groups(self) -> None:
         population = pd.DataFrame(
