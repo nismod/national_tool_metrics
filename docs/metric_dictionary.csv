@@ -4,7 +4,6 @@ context,none,pop_female,Total female population within the administrative region
 context,none,pop_male,Total male population within the administrative region,people,Zonal sum across all male age-band rasters,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_under_5,Population aged under 5 years within the administrative region,people,Zonal sum of total age bands 00 and 01,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_school_children_5_14,Population aged 5-14 years within the administrative region,people,Zonal sum of total age bands 05 and 10,WorldPop 2025 constrained 1km age-sex rasters
-context,none,pop_youth_15_24,Population aged 15-24 years within the administrative region,people,Zonal sum of total age bands 15 and 20,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_working_age_15_64,Population aged 15-64 years within the administrative region,people,Zonal sum of total 5-year age bands from 15 to 60,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_older_65_plus,Population aged 65 years and older within the administrative region,people,Zonal sum of total 5-year age bands from 65 to 90,WorldPop 2025 constrained 1km age-sex rasters
 context,none,pop_female_childbearing_15_49,Female population aged 15-49 years within the administrative region,people,Zonal sum of female 5-year age bands from 15 to 45,WorldPop 2025 constrained 1km age-sex rasters
