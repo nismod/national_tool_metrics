@@ -105,15 +105,45 @@ class CountryConfigTests(unittest.TestCase):
     def test_builds_canonical_section_output_path(self) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
 
-        output_path = config.output_path("adaptation_options")
+        output_path = config.output_path("adaptation_potential")
 
         self.assertEqual(
             output_path,
             REPO_ROOT
             / "results"
             / "KEN"
-            / "adaptation_options"
-            / "KEN_adm1_adaptation_options_metrics.csv",
+            / "adaptation_potential"
+            / "KEN_adm1_adaptation_potential_metrics.csv",
+        )
+
+    def test_loads_adaptation_potential_sources_and_parameters(self) -> None:
+        config = load_country_config("KEN", repo_root=REPO_ROOT)
+
+        self.assertEqual(
+            config.source("adaptation_potential_dir"),
+            REPO_ROOT / "data" / "raw" / "KEN" / "adaptation_potential",
+        )
+        self.assertEqual(
+            config.source("nature_based_solutions_dir"),
+            REPO_ROOT / "data" / "raw" / "global" / "nature_based_solutions",
+        )
+        self.assertEqual(config.parameters["nbs_nominal_cell_area_ha"], 6.25)
+        self.assertEqual(
+            config.parameters["max_urbanisation_nodata_distance_m"],
+            5000,
+        )
+
+    def test_loads_river_flood_hazard_source(self) -> None:
+        config = load_country_config("KEN", repo_root=REPO_ROOT)
+
+        self.assertEqual(
+            config.source("river_flood_hazard_dir"),
+            REPO_ROOT
+            / "data"
+            / "raw"
+            / "KEN"
+            / "hazard"
+            / "river_flooding",
         )
 
     def test_admin_level_alone_changes_standard_boundary_and_output_paths(

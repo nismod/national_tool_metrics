@@ -8,7 +8,7 @@ the national tool:
 2. Exposure
 3. Vulnerability
 4. Risk
-5. Adaptation Options
+5. Adaptation Potential
 6. Adaptation Analysis
 
 The migration is staged so that existing notebooks continue to work until
@@ -26,6 +26,10 @@ data/
 
   raw/
     <ISO3>/
+      hazard/
+        river_flooding/
+        tropical_cyclones/
+
       exposure/
         population/
           worldpop/
@@ -48,13 +52,14 @@ data/
             tropical_cyclone/
         social_infrastructure/
 
+      adaptation_potential/
+
     global/
-      adaptation_options/
-        nature_based_solutions/
+      nature_based_solutions/
 ```
 
-Hazard and Adaptation Analysis input folders will be added once their inputs
-and analytical scope have been agreed.
+Adaptation Analysis input folders will be added once their inputs and
+analytical scope have been agreed.
 
 ## Target results structure
 
@@ -66,7 +71,7 @@ results/<ISO3>/
   exposure/
   vulnerability/
   risk/
-  adaptation_options/
+  adaptation_potential/
   adaptation_analysis/
 ```
 
@@ -89,6 +94,34 @@ source.
 
 Raw and generated data are ignored by Git. GitHub records the directory
 skeleton and configuration, but not the local datasets or generated CSVs.
+
+## River-flood Hazard rasters
+
+The initial Hazard workflow creates one baseline JRC river-flood row per
+administrative region. Return periods are encoded in the metric column names,
+preserving the standard one-row-per-region, hazard, scenario, and model-run
+grain. Input rasters use:
+
+```text
+data/raw/<ISO3>/hazard/river_flooding/
+  <ISO3>_jrc-flood_RP10.tif
+  <ISO3>_jrc-flood_RP20.tif
+  <ISO3>_jrc-flood_RP50.tif
+  <ISO3>_jrc-flood_RP75.tif
+  <ISO3>_jrc-flood_RP100.tif
+  <ISO3>_jrc-flood_RP200.tif
+  <ISO3>_jrc-flood_RP500.tif
+```
+
+Positive raster values are treated as flood depth in metres, and no-data or
+nonpositive cells are treated as dry. For each return period, the workflow
+reports flooded area in square kilometres, flooded area as a percentage of
+the administrative region, area-weighted mean depth, and area-weighted 90th-
+percentile depth. Geographic cell areas and administrative-region areas are
+calculated geodesically. The workflow also validates aligned raster grids and
+nondecreasing flood extent with increasing return period.
+
+Tropical-cyclone Hazard inputs and metrics are reserved for a later phase.
 
 ## Exposure WorldPop rasters
 
@@ -115,6 +148,7 @@ The required filenames are:
 
 | Stage | Source | Legacy location | Target location |
 |---|---|---|---|
+| Hazard | JRC river-flood depth maps | New input | `KEN/hazard/river_flooding` |
 | Exposure | WorldPop | `KEN/context/worldpop` | `KEN/exposure/population/worldpop` |
 | Exposure | Capital stock | `KEN/context/capital_stock` | `KEN/exposure/capital_stock` |
 | Exposure | Facility counts | `KEN/context/accessibility/building_*` | `KEN/exposure/facilities` |
@@ -125,7 +159,8 @@ The required filenames are:
 | Risk | Direct river-flood network risk | `KEN/infrastructure/flooding` | `KEN/risk/infrastructure_networks/direct/river_flood` |
 | Risk | Direct cyclone network risk | `KEN/infrastructure/tc` | `KEN/risk/infrastructure_networks/direct/tropical_cyclone` |
 | Risk | Indirect network risk | Existing source to be confirmed | `KEN/risk/infrastructure_networks/indirect/tropical_cyclone` |
-| Adaptation Options | Nature-based solutions | `global` | `global/adaptation_options/nature_based_solutions` |
+| Adaptation Potential | FLOPROS protection standards | New input | `KEN/adaptation_potential` |
+| Adaptation Potential | Nature-based solutions | `global` | `global/nature_based_solutions` |
 
 The existing road, rail, and power risk files also provide the geometries used
 by the Exposure workflow. They live under Risk in the target layout and are
@@ -211,3 +246,61 @@ Indirect infrastructure risk is reserved for tropical cyclone only and will
 be added when its source schema is available. Social-infrastructure risk is
 produced by a separate workflow and is not calculated by this repository
 phase.
+
+## Adaptation Potential workflow inputs
+
+The Adaptation Potential workflow creates one baseline row per administrative
+region. Existing flood protection is read from:
+
+```text
+data/raw/<ISO3>/adaptation_potential/<ISO3>_flopros.tif
+```
+
+FLOPROS is treated as a raw return period. Zero-valued cells are excluded as
+no-data and the metric is the modal positive return period in each region;
+ties are resolved to the lower return period.
+
+Nature-based solution inputs are stored in:
+
+```text
+data/raw/global/nature_based_solutions/
+```
+
+The required opportunity rasters are `G_LandslideNbS_123_9s.tif` for slope
+vegetation, `ManRestorClass_9s.tif` for mangroves, and
+`G_PotentialNonCoastalTreeNBS_9s.tif` for river catchment restoration. Generic
+planting and regeneration costs use `G_PlantingCost_9s.tif` and
+`G_RegenCost_9s.tif`; mangroves use `ManPlantCost_9s.tif` and
+`ManRegenCost_9s.tif`. Carbon and biodiversity co-benefits use
+`G_CarbonBenefit_9s.tif` and `G_BioBenefit_9s.tif` for all three classes.
+
+The source documentation's nominal 9-arcsecond cell assumption is retained:
+each fully restored opportunity cell represents 6.25 hectares. Cost and
+carbon totals multiply valid per-hectare values by this area. Biodiversity is
+reported as a mean over valid opportunity cells. The cost, carbon, and
+biodiversity metrics retain both headline totals and category-level results.
+Slope vegetation is split into other land cover, crops, and bare ground;
+mangroves are split into accreting, static or moderately retreating, and
+fast-retreating shoreline conditions. Planting cost, regeneration cost, and
+carbon category totals reconcile to their corresponding NbS-class totals.
+River catchment restoration remains a total because its opportunity raster is
+binary. Mangrove cells outside an administrative polygon are assigned to the
+nearest region only when it is within 5 km; all other opportunity cells are
+assigned by cell centre.
+
+The River Network Context card uses:
+
+```text
+data/raw/<ISO3>/adaptation_potential/
+  <ISO3>_river_network.gpkg
+  <ISO3>_ghs-mod.tif
+```
+
+River geometries are clipped to administrative boundaries, divided at
+urbanisation raster-cell edges, and measured geodesically. GHS-SMOD classes
+10, 11, 12, and 13 are grouped as rural (including class 10 water); classes
+21, 22, and 23 are grouped as town; and class 30 is grouped as city. Total,
+rural, town, and city river lengths are reported in kilometres, and the three
+grouped lengths must reconcile to the total. Where small boundary differences
+place river geometry on raster no-data cells, the nearest valid urbanisation
+class within 5 km is used.

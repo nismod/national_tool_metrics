@@ -7,6 +7,18 @@ from .exposure import (
     build_network_metrics,
     build_population_metrics,
 )
+from .adaptation_potential import (
+    assemble_adaptation_potential_metrics,
+    build_adaptation_potential_metrics,
+    build_flopros_metrics,
+    build_nbs_metrics,
+    build_river_network_context_metrics,
+)
+from .hazard import (
+    assemble_hazard_run_metrics,
+    build_hazard_metrics,
+    build_river_flood_metrics,
+)
 from .risk import (
     assemble_risk_run_metrics,
     build_capital_stock_risk_metrics,
@@ -24,6 +36,14 @@ from .vulnerability import (
 )
 
 __all__ = [
+    "assemble_adaptation_potential_metrics",
+    "build_adaptation_potential_metrics",
+    "build_flopros_metrics",
+    "build_nbs_metrics",
+    "build_river_network_context_metrics",
+    "assemble_hazard_run_metrics",
+    "build_hazard_metrics",
+    "build_river_flood_metrics",
     "build_capital_stock_metrics",
     "build_exposure_metrics",
     "build_facility_metrics",

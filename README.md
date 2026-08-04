@@ -3,7 +3,7 @@
 This repository provides a simple workflow for converting OPSIS risk model outputs and context datasets into standardized sub-national metrics for an interactive national tool.
 
 The repository is being migrated to the tool's six-section structure:
-Hazard, Exposure, Vulnerability, Risk, Adaptation Options, and Adaptation
+Hazard, Exposure, Vulnerability, Risk, Adaptation Potential, and Adaptation
 Analysis. See [`docs/data_layout.md`](docs/data_layout.md) for the target
 folder structure, compatibility behaviour, and staged move sequence. Legacy
 input folders remain temporarily so existing notebooks continue to work.
@@ -30,11 +30,13 @@ national_tool_metrics/
 
     raw/
       KEN/
+        hazard/
         exposure/
         vulnerability/
         risk/
+        adaptation_potential/
       global/
-        adaptation_options/
+        nature_based_solutions/
 
   notebooks/
 
@@ -46,7 +48,7 @@ national_tool_metrics/
       exposure/
       vulnerability/
       risk/
-      adaptation_options/
+      adaptation_potential/
       adaptation_analysis/
 
   docs/
@@ -56,11 +58,11 @@ national_tool_metrics/
 
 The tool sections are:
 
-- `hazard`: physical hazard characteristics; scope to be agreed.
+- `hazard`: river-flood extent and depth by return period, with tropical-cyclone metrics to follow.
 - `exposure`: population, demographics, capital stock, networks, and facilities.
 - `vulnerability`: relative wealth, wealth distribution, and baseline accessibility.
 - `risk`: socioeconomic, infrastructure-network, and social-infrastructure risk.
-- `adaptation_options`: available interventions and opportunity locations.
+- `adaptation_potential`: existing flood protection, nature-based solution potential, and river-network context.
 - `adaptation_analysis`: outcomes and comparisons; scope to be agreed.
 
 ## Boundary Data
@@ -102,7 +104,7 @@ notebooks/01_hazard_metrics.ipynb
 notebooks/02_exposure_metrics.ipynb
 notebooks/03_vulnerability_metrics.ipynb
 notebooks/04_risk_metrics.ipynb
-notebooks/05_adaptation_options_metrics.ipynb
+notebooks/05_adaptation_potential_metrics.ipynb
 notebooks/06_adaptation_analysis_metrics.ipynb
 ```
 
@@ -132,7 +134,7 @@ Example output path:
 results/KEN/risk/KEN_adm2_risk_metrics.csv
 ```
 
-For the `context` module, use `hazard = none` or omit the hazard column if the downstream tool does not need it.
+For baseline sections without a hazard dimension, use `hazard = none`.
 
 ## Metric Dictionary
 

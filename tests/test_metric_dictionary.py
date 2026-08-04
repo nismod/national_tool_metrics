@@ -15,7 +15,13 @@ class MetricDictionaryTests(unittest.TestCase):
     def test_uses_section_aligned_modules_and_hazards(self) -> None:
         self.assertEqual(
             {row["module"] for row in self.rows},
-            {"exposure", "vulnerability", "risk", "adaptation_options"},
+            {
+                "hazard",
+                "exposure",
+                "vulnerability",
+                "risk",
+                "adaptation_potential",
+            },
         )
         self.assertEqual(
             {row["hazard"] for row in self.rows},
@@ -30,18 +36,20 @@ class MetricDictionaryTests(unittest.TestCase):
             section: sum(row["module"] == section for row in self.rows)
             for section in {
                 "exposure",
+                "hazard",
                 "vulnerability",
                 "risk",
-                "adaptation_options",
+                "adaptation_potential",
             }
         }
         self.assertEqual(
             counts,
             {
+                "hazard": 4,
                 "exposure": 20,
                 "vulnerability": 8,
                 "risk": 11,
-                "adaptation_options": 9,
+                "adaptation_potential": 22,
             },
         )
 
@@ -100,6 +108,76 @@ class MetricDictionaryTests(unittest.TestCase):
             risk_metrics,
         )
         self.assertIn("power_ead_total", risk_metrics)
+
+    def test_river_context_documents_water_as_rural(self) -> None:
+        river_rows = {
+            row["metric_name"]: row
+            for row in self.rows
+            if row["module"] == "adaptation_potential"
+            and row["metric_name"].startswith("river_length_")
+        }
+
+        self.assertEqual(
+            set(river_rows),
+            {
+                "river_length_total_km",
+                "river_length_rural_km",
+                "river_length_town_km",
+                "river_length_city_km",
+            },
+        )
+        self.assertIn(
+            "class 10 water is grouped with rural",
+            river_rows["river_length_rural_km"]["aggregation_method"],
+        )
+
+    def test_nbs_dictionary_documents_category_costs_and_benefits(self) -> None:
+        category_patterns = {
+            row["metric_name"]
+            for row in self.rows
+            if row["module"] == "adaptation_potential"
+            and "<opportunity_category>" in row["metric_name"]
+        }
+        self.assertEqual(
+            category_patterns,
+            {
+                (
+                    "nbs_<categorized_nbs_class>_<opportunity_category>_"
+                    "planting_cost_total_usd_2020"
+                ),
+                (
+                    "nbs_<categorized_nbs_class>_<opportunity_category>_"
+                    "regeneration_cost_total_usd_2020"
+                ),
+                (
+                    "nbs_<categorized_nbs_class>_<opportunity_category>_"
+                    "carbon_benefit_total_tonnes"
+                ),
+                (
+                    "nbs_<categorized_nbs_class>_<opportunity_category>_"
+                    "biodiversity_benefit_mean"
+                ),
+            },
+        )
+
+    def test_hazard_dictionary_documents_four_return_period_patterns(
+        self,
+    ) -> None:
+        hazard_metrics = {
+            row["metric_name"]
+            for row in self.rows
+            if row["module"] == "hazard"
+        }
+
+        self.assertEqual(
+            hazard_metrics,
+            {
+                "flooded_area_rp<return_period>_km2",
+                "flooded_area_rp<return_period>_pct_admin",
+                "flood_depth_mean_rp<return_period>_m",
+                "flood_depth_p90_rp<return_period>_m",
+            },
+        )
 
 
 if __name__ == "__main__":

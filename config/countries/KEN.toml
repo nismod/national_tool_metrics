@@ -43,15 +43,18 @@ accessibility_dir = [
   "data/raw/KEN/vulnerability/accessibility",
   "data/raw/KEN/context/accessibility",
 ]
-adaptation_options_dir = [
-  "data/raw/global/adaptation_options/nature_based_solutions",
-  "data/raw/global",
-]
+river_flood_hazard_dir = "data/raw/KEN/hazard/river_flooding"
+adaptation_potential_dir = "data/raw/KEN/adaptation_potential"
+nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
 
 [parameters]
 worldpop_year = 2025
 max_rwi_distance_m = 5000
 max_coastal_assignment_distance_m = 5000
+max_urbanisation_nodata_distance_m = 5000
+# The source documentation describes these rasters as 9 arcseconds and uses
+# a nominal 250 m by 250 m restored cell for area and per-hectare benefits.
+nbs_nominal_cell_area_ha = 6.25
 
 [risk_runs.jrc_river_flood_baseline]
 hazard = "river_flood"
