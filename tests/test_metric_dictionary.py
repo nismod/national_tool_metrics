@@ -40,7 +40,7 @@ class MetricDictionaryTests(unittest.TestCase):
             {
                 "exposure": 20,
                 "vulnerability": 8,
-                "risk": 10,
+                "risk": 11,
                 "adaptation_options": 9,
             },
         )
@@ -74,6 +74,32 @@ class MetricDictionaryTests(unittest.TestCase):
                 "<population_metric_label>_travel_time_avg_baseline"
             ),
         )
+
+    def test_risk_dictionary_uses_selected_protected_population_map(
+        self,
+    ) -> None:
+        risk_metrics = {
+            row["metric_name"]
+            for row in self.rows
+            if row["module"] == "risk"
+        }
+        self.assertIn(
+            "flooded_pop_ea_protected_<population_group>",
+            risk_metrics,
+        )
+        self.assertNotIn(
+            "flooded_pop_ea_<population_group>",
+            risk_metrics,
+        )
+        self.assertIn(
+            "flooded_pop_rp<return_period>_<population_group>",
+            risk_metrics,
+        )
+        self.assertIn(
+            "capstock_rp<return_period>_<asset_type>",
+            risk_metrics,
+        )
+        self.assertIn("power_ead_total", risk_metrics)
 
 
 if __name__ == "__main__":

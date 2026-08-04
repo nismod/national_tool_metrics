@@ -164,3 +164,50 @@ The pipeline requires complete administrative coverage, unique identifiers,
 finite values, and nonnegative quintile populations. Small regional
 differences between the sum of quintiles and the independently aggregated
 Exposure population are accepted.
+
+## Risk workflow inputs
+
+The consolidated Risk workflow creates one output row per administrative
+region, hazard, scenario, and model run. The initial Kenya runs are JRC
+baseline river flooding and STORM baseline tropical cyclone.
+
+JRC socioeconomic summaries use admin-level-aware filenames:
+
+```text
+data/raw/<ISO3>/risk/socioeconomic/river_flood/
+  <ISO3>_<ADMIN-LEVEL>_jrc_population_risk_metrics.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_protected_AAR_baseline_capstock.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_RP<RETURN-PERIOD>_baseline_capstock.gpkg
+```
+
+The layer names match the corresponding filename stems. The Population Risk
+card uses `risk_map = AAR_protected` as its protection-adjusted annual-average
+metric and includes `RP10`, `RP20`, `RP50`, `RP75`, `RP100`, `RP200`, and
+`RP500` event exposure metrics for all eight demographic groups and five
+wealth quintiles. The risk map is encoded in each metric column name, so the
+return periods do not introduce another output row dimension. Adding
+consistently named ADM2 summaries is sufficient for the workflow to discover
+them after `admin_level` is changed.
+
+The Capital Stock Risk card uses the protection-adjusted AAR file plus
+separate `RP10`, `RP20`, `RP50`, `RP75`, `RP100`, `RP200`, and `RP500` files.
+Each file contains residential, non-residential, infrastructure, and total
+losses. Return-period losses are encoded in metric column names and retain the
+same output row grain. Each file must have complete administrative coverage,
+nonnegative finite values, and exact component-to-total reconciliation.
+
+Direct network risk uses:
+
+```text
+data/raw/<ISO3>/risk/infrastructure_networks/direct/river_flood/
+  river-jrc_road_damages.gpkg
+  river-jrc_rail_damages.gpkg
+
+data/raw/<ISO3>/risk/infrastructure_networks/direct/tropical_cyclone/
+  power.gpkg
+```
+
+Indirect infrastructure risk is reserved for tropical cyclone only and will
+be added when its source schema is available. Social-infrastructure risk is
+produced by a separate workflow and is not calculated by this repository
+phase.

@@ -58,13 +58,15 @@ hazard = "river_flood"
 scenario = "baseline"
 
 [risk_runs.jrc_river_flood_baseline.inputs]
-population_risk = [
-  "data/raw/KEN/risk/socioeconomic/river_flood/KEN_ADM1_jrc_population_risk_metrics.gpkg",
-  "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_jrc_population_risk_metrics.gpkg",
+# The workflow derives admin-level-specific filenames and layer names in these
+# directories, so adding ADM2 summaries will not require a second run bundle.
+population_risk_dir = [
+  "data/raw/KEN/risk/socioeconomic/river_flood",
+  "data/raw/KEN/socioeconomic/flooding",
 ]
-capital_stock_aal = [
-  "data/raw/KEN/risk/socioeconomic/river_flood/KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock.gpkg",
-  "data/raw/KEN/socioeconomic/flooding/KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock.gpkg",
+capital_stock_risk_dir = [
+  "data/raw/KEN/risk/socioeconomic/river_flood",
+  "data/raw/KEN/socioeconomic/flooding",
 ]
 road_damage = [
   "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg",
@@ -74,10 +76,6 @@ rail_damage = [
   "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg",
   "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg",
 ]
-
-[risk_runs.jrc_river_flood_baseline.layers]
-population_risk = "KEN_ADM1_jrc_population_risk_metrics"
-capital_stock_aal = "KEN_ADM1_metrics_jrc-flood_AALs_baseline_capstock"
 
 [risk_runs.jrc_river_flood_baseline.columns]
 road_ead = "hazard-floodMapGL_EAD"

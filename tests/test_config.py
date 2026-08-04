@@ -37,7 +37,7 @@ class CountryConfigTests(unittest.TestCase):
 
         self.assertEqual(flood_run.hazard, "river_flood")
         self.assertEqual(flood_run.scenario, "baseline")
-        self.assertIn("population_risk", flood_run.inputs)
+        self.assertIn("population_risk_dir", flood_run.inputs)
         self.assertEqual(cyclone_run.hazard, "tropical_cyclone")
         self.assertIn("power_damage", cyclone_run.inputs)
 
@@ -47,7 +47,7 @@ class CountryConfigTests(unittest.TestCase):
         worldpop_candidates = config.source_candidates["worldpop_dir"]
         flood_run = config.risk_run("jrc_river_flood_baseline")
         population_risk_candidates = flood_run.input_candidates[
-            "population_risk"
+            "population_risk_dir"
         ]
 
         self.assertEqual(
@@ -65,7 +65,7 @@ class CountryConfigTests(unittest.TestCase):
             REPO_ROOT / "data" / "raw" / "KEN" / "context" / "worldpop",
         )
         self.assertEqual(
-            population_risk_candidates[0].parent,
+            population_risk_candidates[0],
             REPO_ROOT
             / "data"
             / "raw"
@@ -73,6 +73,19 @@ class CountryConfigTests(unittest.TestCase):
             / "risk"
             / "socioeconomic"
             / "river_flood",
+        )
+
+    def test_risk_summary_directories_support_future_admin_levels(
+        self,
+    ) -> None:
+        config = load_country_config("KEN", repo_root=REPO_ROOT)
+        flood_run = config.risk_run("jrc_river_flood_baseline")
+
+        self.assertTrue(
+            flood_run.inputs["population_risk_dir"].is_dir()
+        )
+        self.assertTrue(
+            flood_run.inputs["capital_stock_risk_dir"].is_dir()
         )
 
     def test_empty_new_skeleton_falls_back_to_populated_legacy_path(
