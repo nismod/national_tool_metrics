@@ -224,7 +224,8 @@ data/raw/<ISO3>/adaptation_potential/
 
 FLOPROS values are raw protection return periods. Zero is excluded as no-data,
 and the output reports the modal positive value in each region, resolving ties
-to the lower return period.
+to the lower return period. Regions without positive FLOPROS cells retain a
+blank no-data value; they are not assigned a zero-year protection standard.
 
 River geometries are clipped to administrative boundaries and measured
 geodesically. GHS-SMOD classes 10–13 are grouped as rural, including water;

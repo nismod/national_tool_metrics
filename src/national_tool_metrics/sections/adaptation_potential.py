@@ -681,7 +681,8 @@ def build_flopros_metrics(
             if float(value) > 0 and int(count) > 0
         }
         if not positive:
-            raise ValueError(f"No positive FLOPROS cells found for admin {adm_id}")
+            modes.append(np.nan)
+            continue
         maximum = max(positive.values())
         modes.append(min(value for value, count in positive.items() if count == maximum))
 
@@ -991,6 +992,7 @@ def assemble_adaptation_potential_metrics(
     output = merge_metric_tables(
         identifiers,
         [flopros_metrics, nbs_metrics, river_network_context_metrics],
+        fill_missing_numeric=False,
     )
     validate_section_output(output, "adaptation_potential")
     return output

@@ -100,6 +100,33 @@ class AdaptationPotentialMetricTests(unittest.TestCase):
             [2.0, 3.0],
         )
 
+    def test_flopros_preserves_region_without_positive_cells_as_no_data(
+        self,
+    ) -> None:
+        values = np.array(
+            [
+                [2, 2, 0, 0, 0],
+                [2, 2, 0, 0, 0],
+                [2, 2, 0, 0, 0],
+                [2, 2, 0, 0, 0],
+                [2, 2, 0, 0, 0],
+            ],
+            dtype="float32",
+        )
+        self._write_raster(self.local_directory / "KEN_flopros.tif", values)
+
+        metrics = build_flopros_metrics(self.config, self.admin_regions)
+
+        self.assertEqual(
+            metrics.loc[0, "flopros_protection_standard_mode_rp"],
+            2.0,
+        )
+        self.assertTrue(
+            pd.isna(
+                metrics.loc[1, "flopros_protection_standard_mode_rp"]
+            )
+        )
+
     def test_nbs_metrics_use_nominal_area_and_nearest_mangrove_assignment(
         self,
     ) -> None:
@@ -241,7 +268,7 @@ class AdaptationPotentialMetricTests(unittest.TestCase):
         flopros = pd.DataFrame(
             {
                 "adm_id": ["KEN-1", "KEN-2"],
-                "flopros_protection_standard_mode_rp": [2, 5],
+                "flopros_protection_standard_mode_rp": [2, float("nan")],
             }
         )
         nbs = pd.DataFrame(
@@ -268,6 +295,11 @@ class AdaptationPotentialMetricTests(unittest.TestCase):
         self.assertEqual(set(output["section"]), {"adaptation_potential"})
         self.assertTrue(
             {"hazard", "scenario", "model_run"}.isdisjoint(output.columns)
+        )
+        self.assertTrue(
+            pd.isna(
+                output.loc[1, "flopros_protection_standard_mode_rp"]
+            )
         )
 
     def test_river_context_groups_water_with_rural_and_fills_nearby_nodata(
