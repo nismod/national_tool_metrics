@@ -53,6 +53,29 @@ class OutputContractTests(unittest.TestCase):
         self.assertEqual(output["pop_total"].tolist(), [100.123, 200.0])
         self.assertNotIn("geometry", output.columns)
 
+    def test_can_preserve_numeric_no_data(self) -> None:
+        identifiers = build_identifier_frame(
+            self.admin_regions,
+            self.config,
+            section="vulnerability",
+        )
+        metrics = pd.DataFrame(
+            {
+                "adm_id": ["KEN-1", "KEN-2"],
+                "access_minutes": [10.0, float("nan")],
+            }
+        )
+
+        output = merge_metric_tables(
+            identifiers,
+            [metrics],
+            fill_missing_numeric=False,
+        )
+
+        self.assertEqual(output.loc[0, "access_minutes"], 10.0)
+        self.assertTrue(pd.isna(output.loc[1, "access_minutes"]))
+        validate_section_output(output, "vulnerability")
+
     def test_rejects_duplicate_output_grain(self) -> None:
         identifiers = build_identifier_frame(
             self.admin_regions,

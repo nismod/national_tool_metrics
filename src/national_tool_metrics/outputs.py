@@ -74,8 +74,15 @@ def namespace_metric_table(
 def merge_metric_tables(
     identifiers: pd.DataFrame,
     metric_tables: list[pd.DataFrame],
+    *,
+    fill_missing_numeric: bool = True,
 ) -> pd.DataFrame:
-    """Merge one or more one-row-per-admin metric tables."""
+    """Merge one or more one-row-per-admin metric tables.
+
+    By default, missing numeric values introduced by metric tables are treated
+    as zero. Set ``fill_missing_numeric`` to ``False`` for metrics where missing
+    values represent genuine no-data rather than zero.
+    """
     output = identifiers.copy()
     for index, metrics in enumerate(metric_tables, start=1):
         label = f"Metric table {index}"
@@ -101,7 +108,9 @@ def merge_metric_tables(
         )
 
     numeric_columns = output.select_dtypes(include="number").columns
-    output[numeric_columns] = output[numeric_columns].fillna(0).round(3)
+    if fill_missing_numeric:
+        output[numeric_columns] = output[numeric_columns].fillna(0)
+    output[numeric_columns] = output[numeric_columns].round(3)
     return output
 
 

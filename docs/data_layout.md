@@ -169,6 +169,9 @@ data/raw/<ISO3>/vulnerability/accessibility/
 The workflow expects hospitals and schools; walking and motorized modes; and
 the total, female, male, infant, school-age, working-age, childbearing-age, and
 elderly population groups. This produces 32 baseline travel-time metrics.
+Blank baseline travel times are preserved as no-data when an administrative
+region falls outside the upstream routing calculation; they are not converted
+to zero-minute access. Observed travel times must be finite and nonnegative.
 
 ## Risk inputs
 
