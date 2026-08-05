@@ -92,22 +92,34 @@ class MetricDictionaryTests(unittest.TestCase):
             if row["module"] == "risk"
         }
         self.assertIn(
-            "flooded_pop_ea_protected_<population_group>",
+            (
+                "river_flood_jrc_baseline_"
+                "flooded_pop_ea_protected_<population_group>"
+            ),
             risk_metrics,
         )
         self.assertNotIn(
-            "flooded_pop_ea_<population_group>",
+            "river_flood_jrc_baseline_flooded_pop_ea_<population_group>",
             risk_metrics,
         )
         self.assertIn(
-            "flooded_pop_rp<return_period>_<population_group>",
+            (
+                "river_flood_jrc_baseline_"
+                "flooded_pop_rp<return_period>_<population_group>"
+            ),
             risk_metrics,
         )
         self.assertIn(
-            "capstock_rp<return_period>_<asset_type>",
+            (
+                "river_flood_jrc_baseline_"
+                "capstock_rp<return_period>_<asset_type>"
+            ),
             risk_metrics,
         )
-        self.assertIn("power_ead_total", risk_metrics)
+        self.assertIn(
+            "tropical_cyclone_storm_baseline_2020_power_ead_total",
+            risk_metrics,
+        )
 
     def test_river_context_documents_water_as_rural(self) -> None:
         river_rows = {
@@ -172,12 +184,48 @@ class MetricDictionaryTests(unittest.TestCase):
         self.assertEqual(
             hazard_metrics,
             {
-                "flooded_area_rp<return_period>_km2",
-                "flooded_area_rp<return_period>_pct_admin",
-                "flood_depth_mean_rp<return_period>_m",
-                "flood_depth_p90_rp<return_period>_m",
+                (
+                    "river_flood_jrc_baseline_"
+                    "flooded_area_rp<return_period>_km2"
+                ),
+                (
+                    "river_flood_jrc_baseline_"
+                    "flooded_area_rp<return_period>_pct_admin"
+                ),
+                (
+                    "river_flood_jrc_baseline_"
+                    "flood_depth_mean_rp<return_period>_m"
+                ),
+                (
+                    "river_flood_jrc_baseline_"
+                    "flood_depth_p90_rp<return_period>_m"
+                ),
             },
         )
+
+    def test_hazard_and_risk_metrics_encode_run_dimensions(self) -> None:
+        for row in self.rows:
+            if row["module"] == "hazard":
+                self.assertTrue(
+                    row["metric_name"].startswith(
+                        "river_flood_jrc_baseline_"
+                    )
+                )
+            if row["module"] == "risk" and row["hazard"] == "river_flood":
+                self.assertTrue(
+                    row["metric_name"].startswith(
+                        "river_flood_jrc_baseline_"
+                    )
+                )
+            if (
+                row["module"] == "risk"
+                and row["hazard"] == "tropical_cyclone"
+            ):
+                self.assertTrue(
+                    row["metric_name"].startswith(
+                        "tropical_cyclone_storm_baseline_2020_"
+                    )
+                )
 
 
 if __name__ == "__main__":

@@ -37,10 +37,10 @@ class RiskMetricTests(unittest.TestCase):
             crs="EPSG:4326",
         )
         self.river_run = self.config.risk_run(
-            "jrc_river_flood_baseline"
+            "river_flood_jrc_baseline"
         )
         self.cyclone_run = self.config.risk_run(
-            "storm_tropical_cyclone_baseline_2020"
+            "tropical_cyclone_storm_baseline_2020"
         )
 
     def _population_source(self) -> pd.DataFrame:
@@ -380,7 +380,7 @@ class RiskMetricTests(unittest.TestCase):
 
         self.assertEqual(metrics["power_ead_total"].tolist(), [0.0, 0.0])
 
-    def test_combined_output_preserves_inapplicable_metrics_as_blank(
+    def test_combined_output_merges_namespaced_runs_horizontally(
         self,
     ) -> None:
         river = assemble_risk_run_metrics(
@@ -412,21 +412,22 @@ class RiskMetricTests(unittest.TestCase):
 
         combined = combine_risk_run_outputs([river, cyclone])
 
-        self.assertEqual(len(combined), 4)
+        self.assertEqual(len(combined), 2)
+        self.assertTrue(
+            {"hazard", "scenario", "model_run"}.isdisjoint(combined.columns)
+        )
         self.assertEqual(
-            set(combined["hazard"]),
-            {"river_flood", "tropical_cyclone"},
+            combined[
+                "river_flood_jrc_baseline_"
+                "flooded_pop_ea_protected_total"
+            ].tolist(),
+            [10.0, 20.0],
         )
-        river_rows = combined["hazard"] == "river_flood"
-        cyclone_rows = combined["hazard"] == "tropical_cyclone"
-        self.assertTrue(
-            combined.loc[river_rows, "power_ead_total"].isna().all()
-        )
-        self.assertTrue(
-            combined.loc[
-                cyclone_rows,
-                "flooded_pop_ea_protected_total",
-            ].isna().all()
+        self.assertEqual(
+            combined[
+                "tropical_cyclone_storm_baseline_2020_power_ead_total"
+            ].tolist(),
+            [0.0, 0.0],
         )
 
 

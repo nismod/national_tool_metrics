@@ -123,11 +123,9 @@ class BoundaryConfig:
 
 @dataclass(frozen=True)
 class RiskRunConfig:
-    """One reporting bundle of compatible metrics for a hazard and scenario."""
+    """One reporting bundle whose name is its output metric namespace."""
 
     name: str
-    hazard: str
-    scenario: str
     inputs: dict[str, Path]
     input_candidates: dict[str, tuple[Path, ...]]
     layers: dict[str, str]
@@ -272,12 +270,6 @@ def load_country_config(
         }
         risk_runs[run_name] = RiskRunConfig(
             name=run_name,
-            hazard=_require_string(
-                run_values, "hazard", f"risk_runs.{run_name}"
-            ),
-            scenario=_require_string(
-                run_values, "scenario", f"risk_runs.{run_name}"
-            ),
             inputs={
                 name: _select_path_candidate(candidates)
                 for name, candidates in input_candidates.items()

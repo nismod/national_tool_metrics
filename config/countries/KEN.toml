@@ -56,11 +56,9 @@ max_urbanisation_nodata_distance_m = 5000
 # a nominal 250 m by 250 m restored cell for area and per-hectare benefits.
 nbs_nominal_cell_area_ha = 6.25
 
-[risk_runs.jrc_river_flood_baseline]
-hazard = "river_flood"
-scenario = "baseline"
+[risk_runs.river_flood_jrc_baseline]
 
-[risk_runs.jrc_river_flood_baseline.inputs]
+[risk_runs.river_flood_jrc_baseline.inputs]
 # The workflow derives admin-level-specific filenames and layer names in these
 # directories, so adding ADM2 summaries will not require a second run bundle.
 population_risk_dir = [
@@ -80,19 +78,17 @@ rail_damage = [
   "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg",
 ]
 
-[risk_runs.jrc_river_flood_baseline.columns]
+[risk_runs.river_flood_jrc_baseline.columns]
 road_ead = "hazard-floodMapGL_EAD"
 rail_ead = "hazard-floodMapGL_EAD"
 
-[risk_runs.storm_tropical_cyclone_baseline_2020]
-hazard = "tropical_cyclone"
-scenario = "baseline"
+[risk_runs.tropical_cyclone_storm_baseline_2020]
 
-[risk_runs.storm_tropical_cyclone_baseline_2020.inputs]
+[risk_runs.tropical_cyclone_storm_baseline_2020.inputs]
 power_damage = [
   "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg",
   "data/raw/KEN/infrastructure/tc/power.gpkg",
 ]
 
-[risk_runs.storm_tropical_cyclone_baseline_2020.columns]
+[risk_runs.tropical_cyclone_storm_baseline_2020.columns]
 power_ead = "ead__cyclone__rcp_baseline__epoch_2020"

@@ -10,6 +10,7 @@ from ..outputs import (
     IDENTIFIER_COLUMNS,
     build_identifier_frame,
     merge_metric_tables,
+    namespace_metric_table,
     validate_section_output,
 )
 from ..tables import read_gpkg_attributes, validate_columns, validate_unique
@@ -518,16 +519,16 @@ def assemble_risk_run_metrics(
     run: RiskRunConfig,
     metric_tables: list[pd.DataFrame],
 ) -> pd.DataFrame:
-    """Attach the standard Risk identifiers to one configured model run."""
+    """Attach identifiers and namespace metrics for one configured run."""
     identifiers = build_identifier_frame(
         admin_regions,
         config,
         section="risk",
-        hazard=run.hazard,
-        scenario=run.scenario,
-        model_run=run.name,
     )
-    return merge_metric_tables(identifiers, metric_tables)
+    namespaced_tables = [
+        namespace_metric_table(metrics, run.name) for metrics in metric_tables
+    ]
+    return merge_metric_tables(identifiers, namespaced_tables)
 
 
 def build_risk_run_metrics(
@@ -564,15 +565,30 @@ def build_risk_run_metrics(
 def combine_risk_run_outputs(
     risk_runs: list[pd.DataFrame],
 ) -> pd.DataFrame:
-    """Combine run outputs while preserving blanks for inapplicable metrics."""
+    """Merge namespaced run outputs into one row per administrative region."""
     if not risk_runs:
         raise ValueError("At least one Risk run output is required")
-    combined = pd.concat(risk_runs, ignore_index=True, sort=False)
-    metric_columns = [
-        column for column in combined.columns
-        if column not in IDENTIFIER_COLUMNS
-    ]
-    combined = combined[[*IDENTIFIER_COLUMNS, *metric_columns]]
+    for run_output in risk_runs:
+        validate_section_output(run_output, "risk")
+
+    identifiers = risk_runs[0][IDENTIFIER_COLUMNS].copy()
+    metric_tables = []
+    for index, run_output in enumerate(risk_runs, start=1):
+        run_identifiers = run_output[IDENTIFIER_COLUMNS]
+        if not run_identifiers.reset_index(drop=True).equals(
+            identifiers.reset_index(drop=True)
+        ):
+            raise ValueError(
+                f"Risk run output {index} identifiers do not match the first run"
+            )
+        metric_columns = [
+            column
+            for column in run_output.columns
+            if column not in IDENTIFIER_COLUMNS
+        ]
+        metric_tables.append(run_output[["adm_id", *metric_columns]])
+
+    combined = merge_metric_tables(identifiers, metric_tables)
     validate_section_output(combined, "risk")
     return combined
 

@@ -73,23 +73,25 @@ class HazardMetricTests(unittest.TestCase):
         output = build_hazard_metrics(self.config, self.admin_regions)
         metrics = output.set_index("adm_id")
 
-        self.assertEqual(output.shape, (2, 37))
+        self.assertEqual(output.shape, (2, 34))
         self.assertEqual(set(output["section"]), {"hazard"})
-        self.assertEqual(set(output["hazard"]), {"river_flood"})
-        self.assertEqual(set(output["scenario"]), {"baseline"})
-        self.assertEqual(
-            set(output["model_run"]),
-            {"jrc_river_flood_baseline"},
+        self.assertTrue(
+            {"hazard", "scenario", "model_run"}.isdisjoint(output.columns)
         )
         for return_period in RIVER_FLOOD_RETURN_PERIODS:
             self.assertAlmostEqual(
-                metrics.loc["KEN-1", f"flooded_area_rp{return_period}_km2"],
+                metrics.loc[
+                    "KEN-1",
+                    "river_flood_jrc_baseline_"
+                    f"flooded_area_rp{return_period}_km2",
+                ],
                 2.0,
                 places=3,
             )
             self.assertAlmostEqual(
                 metrics.loc[
                     "KEN-1",
+                    "river_flood_jrc_baseline_"
                     f"flooded_area_rp{return_period}_pct_admin",
                 ],
                 50.0,
@@ -98,6 +100,7 @@ class HazardMetricTests(unittest.TestCase):
             self.assertAlmostEqual(
                 metrics.loc[
                     "KEN-1",
+                    "river_flood_jrc_baseline_"
                     f"flood_depth_mean_rp{return_period}_m",
                 ],
                 1.25,
@@ -106,19 +109,25 @@ class HazardMetricTests(unittest.TestCase):
             self.assertAlmostEqual(
                 metrics.loc[
                     "KEN-1",
+                    "river_flood_jrc_baseline_"
                     f"flood_depth_p90_rp{return_period}_m",
                 ],
                 2.0,
                 places=3,
             )
             self.assertAlmostEqual(
-                metrics.loc["KEN-2", f"flooded_area_rp{return_period}_km2"],
+                metrics.loc[
+                    "KEN-2",
+                    "river_flood_jrc_baseline_"
+                    f"flooded_area_rp{return_period}_km2",
+                ],
                 3.0,
                 places=3,
             )
             self.assertAlmostEqual(
                 metrics.loc[
                     "KEN-2",
+                    "river_flood_jrc_baseline_"
                     f"flood_depth_p90_rp{return_period}_m",
                 ],
                 4.0,

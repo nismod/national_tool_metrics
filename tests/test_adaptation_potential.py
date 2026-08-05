@@ -266,9 +266,9 @@ class AdaptationPotentialMetricTests(unittest.TestCase):
         )
 
         self.assertEqual(set(output["section"]), {"adaptation_potential"})
-        self.assertEqual(set(output["hazard"]), {"none"})
-        self.assertEqual(set(output["scenario"]), {"baseline"})
-        self.assertEqual(set(output["model_run"]), {"baseline_inputs"})
+        self.assertTrue(
+            {"hazard", "scenario", "model_run"}.isdisjoint(output.columns)
+        )
 
     def test_river_context_groups_water_with_rural_and_fills_nearby_nodata(
         self,

@@ -15,6 +15,7 @@ from .adaptation_potential import (
     build_river_network_context_metrics,
 )
 from .hazard import (
+    RIVER_FLOOD_METRIC_NAMESPACE,
     assemble_hazard_run_metrics,
     build_hazard_metrics,
     build_river_flood_metrics,
@@ -41,6 +42,7 @@ __all__ = [
     "build_flopros_metrics",
     "build_nbs_metrics",
     "build_river_network_context_metrics",
+    "RIVER_FLOOD_METRIC_NAMESPACE",
     "assemble_hazard_run_metrics",
     "build_hazard_metrics",
     "build_river_flood_metrics",

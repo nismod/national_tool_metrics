@@ -21,13 +21,14 @@ from ..config import PipelineConfig
 from ..outputs import (
     build_identifier_frame,
     merge_metric_tables,
+    namespace_metric_table,
     validate_section_output,
 )
 from ..raster import raster_window_cell_areas_km2
 
 
 RIVER_FLOOD_RETURN_PERIODS = (10, 20, 50, 75, 100, 200, 500)
-RIVER_FLOOD_MODEL_RUN = "jrc_river_flood_baseline"
+RIVER_FLOOD_METRIC_NAMESPACE = "river_flood_jrc_baseline"
 
 
 @dataclass(frozen=True)
@@ -262,20 +263,19 @@ def assemble_hazard_run_metrics(
     config: PipelineConfig,
     admin_regions: gpd.GeoDataFrame,
     metric_tables: list[pd.DataFrame],
-    hazard: str,
-    scenario: str,
-    model_run: str,
+    metric_namespace: str,
 ) -> pd.DataFrame:
-    """Add standard identifiers to one hazard run's metric tables."""
+    """Add identifiers and namespace one hazard run's metric tables."""
     identifiers = build_identifier_frame(
         admin_regions,
         config,
         section="hazard",
-        hazard=hazard,
-        scenario=scenario,
-        model_run=model_run,
     )
-    output = merge_metric_tables(identifiers, metric_tables)
+    namespaced_tables = [
+        namespace_metric_table(metrics, metric_namespace)
+        for metrics in metric_tables
+    ]
+    output = merge_metric_tables(identifiers, namespaced_tables)
     validate_section_output(output, "hazard")
     return output
 
@@ -292,7 +292,5 @@ def build_hazard_metrics(
         config,
         admin_regions,
         [river_flood_metrics],
-        hazard="river_flood",
-        scenario="baseline",
-        model_run=RIVER_FLOOD_MODEL_RUN,
+        metric_namespace=RIVER_FLOOD_METRIC_NAMESPACE,
     )

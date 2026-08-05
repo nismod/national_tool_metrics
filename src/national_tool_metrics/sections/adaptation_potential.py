@@ -987,9 +987,6 @@ def assemble_adaptation_potential_metrics(
         admin_regions,
         config,
         section="adaptation_potential",
-        hazard="none",
-        scenario="baseline",
-        model_run="baseline_inputs",
     )
     output = merge_metric_tables(
         identifiers,

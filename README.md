@@ -108,6 +108,9 @@ notebooks/05_adaptation_potential_metrics.ipynb
 notebooks/06_adaptation_analysis_metrics.ipynb
 ```
 
+Superseded notebooks are retained under `notebooks/legacy/` for reference
+only. They do not define the canonical section outputs.
+
 ## Output Format
 
 Each notebook should produce one CSV with one row per sub-national region.
@@ -121,20 +124,19 @@ admin_level
 adm_id
 adm_name
 section
-hazard
-scenario
-model_run
 ```
 
-These should be followed by the metric columns created by the notebook.
+These are followed by the metric columns created by the notebook. Each section
+contains one row per administrative region. Hazard, model, scenario, and epoch
+distinctions are encoded in metric names when they vary, using hazard-first
+namespaces such as `river_flood_jrc_baseline_` and
+`tropical_cyclone_storm_baseline_2020_`.
 
 Example output path:
 
 ```text
 results/KEN/risk/KEN_adm2_risk_metrics.csv
 ```
-
-For baseline sections without a hazard dimension, use `hazard = none`.
 
 ## Metric Dictionary
 
@@ -150,4 +152,6 @@ Suggested columns:
 module,hazard,metric_name,description,unit,aggregation_method,source_notes
 ```
 
-This file should make it clear what each output column means and how it was calculated.
+The dictionary retains `hazard` as descriptive metadata, but `hazard` is not
+an identifier column in the section CSVs. This file should make it clear what
+each output column means and how it was calculated.

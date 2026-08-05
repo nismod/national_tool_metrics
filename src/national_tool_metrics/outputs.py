@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import geopandas as gpd
 import pandas as pd
@@ -16,9 +17,6 @@ IDENTIFIER_COLUMNS = [
     "adm_id",
     "adm_name",
     "section",
-    "hazard",
-    "scenario",
-    "model_run",
 ]
 
 OUTPUT_UNIQUE_KEY = [
@@ -26,19 +24,16 @@ OUTPUT_UNIQUE_KEY = [
     "admin_level",
     "adm_id",
     "section",
-    "hazard",
-    "scenario",
-    "model_run",
 ]
+
+REMOVED_OUTPUT_DIMENSIONS = {"hazard", "scenario", "model_run"}
+METRIC_NAMESPACE_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def build_identifier_frame(
     admin_regions: gpd.GeoDataFrame,
     config: PipelineConfig,
     section: str,
-    hazard: str = "none",
-    scenario: str = "baseline",
-    model_run: str = "baseline_inputs",
 ) -> pd.DataFrame:
     """Create the standard one-row-per-admin output identifiers."""
     validate_columns(
@@ -53,10 +48,27 @@ def build_identifier_frame(
     identifiers.insert(0, "country_name", config.country.name)
     identifiers.insert(0, "country_iso3", config.country.iso3)
     identifiers["section"] = section
-    identifiers["hazard"] = hazard
-    identifiers["scenario"] = scenario
-    identifiers["model_run"] = model_run
     return identifiers[IDENTIFIER_COLUMNS]
+
+
+def namespace_metric_table(
+    metrics: pd.DataFrame,
+    namespace: str,
+) -> pd.DataFrame:
+    """Prefix a one-row-per-admin metric table with a stable run namespace."""
+    validate_columns(metrics, {"adm_id"}, "Metric table")
+    validate_unique(metrics, ["adm_id"], "Metric table")
+    if not METRIC_NAMESPACE_PATTERN.fullmatch(namespace):
+        raise ValueError(
+            "Metric namespace must start with a lowercase letter and contain "
+            f"only lowercase letters, numbers, and underscores: {namespace!r}"
+        )
+    metric_columns = [column for column in metrics.columns if column != "adm_id"]
+    if not metric_columns:
+        raise ValueError("Metric table contains no metric columns to namespace")
+    return metrics.rename(
+        columns={column: f"{namespace}_{column}" for column in metric_columns}
+    )
 
 
 def merge_metric_tables(
@@ -100,6 +112,14 @@ def validate_section_output(
 ) -> None:
     """Validate identifiers, row grain, and the CSV-safe output schema."""
     validate_columns(frame, set(IDENTIFIER_COLUMNS), "Section output")
+    removed_dimensions = sorted(
+        REMOVED_OUTPUT_DIMENSIONS.intersection(frame.columns)
+    )
+    if removed_dimensions:
+        raise ValueError(
+            "Section output contains removed dimensions; encode them in metric "
+            f"column names instead: {removed_dimensions}"
+        )
     if frame.empty:
         raise ValueError("Section output contains no rows")
     if frame["section"].isna().any():

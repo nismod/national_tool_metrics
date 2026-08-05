@@ -30,22 +30,24 @@ class CountryConfigTests(unittest.TestCase):
     def test_loads_agreed_risk_run_bundles(self) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
 
-        flood_run = config.risk_run("jrc_river_flood_baseline")
+        flood_run = config.risk_run("river_flood_jrc_baseline")
         cyclone_run = config.risk_run(
-            "storm_tropical_cyclone_baseline_2020"
+            "tropical_cyclone_storm_baseline_2020"
         )
 
-        self.assertEqual(flood_run.hazard, "river_flood")
-        self.assertEqual(flood_run.scenario, "baseline")
+        self.assertEqual(flood_run.name, "river_flood_jrc_baseline")
         self.assertIn("population_risk_dir", flood_run.inputs)
-        self.assertEqual(cyclone_run.hazard, "tropical_cyclone")
+        self.assertEqual(
+            cyclone_run.name,
+            "tropical_cyclone_storm_baseline_2020",
+        )
         self.assertIn("power_damage", cyclone_run.inputs)
 
     def test_loads_new_first_migration_candidates(self) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
 
         worldpop_candidates = config.source_candidates["worldpop_dir"]
-        flood_run = config.risk_run("jrc_river_flood_baseline")
+        flood_run = config.risk_run("river_flood_jrc_baseline")
         population_risk_candidates = flood_run.input_candidates[
             "population_risk_dir"
         ]
@@ -79,7 +81,7 @@ class CountryConfigTests(unittest.TestCase):
         self,
     ) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
-        flood_run = config.risk_run("jrc_river_flood_baseline")
+        flood_run = config.risk_run("river_flood_jrc_baseline")
 
         self.assertTrue(
             flood_run.inputs["population_risk_dir"].is_dir()

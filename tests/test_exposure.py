@@ -129,9 +129,9 @@ class ExposureMetricTests(unittest.TestCase):
             )
 
         self.assertEqual(set(output["section"]), {"exposure"})
-        self.assertEqual(set(output["hazard"]), {"none"})
-        self.assertEqual(set(output["scenario"]), {"baseline"})
-        self.assertEqual(set(output["model_run"]), {"baseline_inputs"})
+        self.assertTrue(
+            {"hazard", "scenario", "model_run"}.isdisjoint(output.columns)
+        )
         for metric_name in (
             "pop_total",
             "capstock_residential",

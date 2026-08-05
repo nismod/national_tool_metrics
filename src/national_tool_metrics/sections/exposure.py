@@ -160,9 +160,6 @@ def build_exposure_metrics(
         admin_regions,
         config,
         section="exposure",
-        hazard="none",
-        scenario="baseline",
-        model_run="baseline_inputs",
     )
     return merge_metric_tables(
         identifiers,

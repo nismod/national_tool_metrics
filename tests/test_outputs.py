@@ -10,6 +10,7 @@ from national_tool_metrics.outputs import (
     IDENTIFIER_COLUMNS,
     build_identifier_frame,
     merge_metric_tables,
+    namespace_metric_table,
     validate_section_output,
 )
 
@@ -57,8 +58,6 @@ class OutputContractTests(unittest.TestCase):
             self.admin_regions,
             self.config,
             section="risk",
-            hazard="river_flood",
-            model_run="jrc_river_flood_baseline",
         )
         duplicated = pd.concat(
             [identifiers.assign(metric=1), identifiers.iloc[[0]].assign(metric=2)],
@@ -67,6 +66,31 @@ class OutputContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "duplicate key rows"):
             validate_section_output(duplicated, "risk")
+
+    def test_namespaces_metric_columns_and_rejects_removed_dimensions(
+        self,
+    ) -> None:
+        metrics = pd.DataFrame(
+            {"adm_id": ["KEN-1", "KEN-2"], "loss_total": [1, 2]}
+        )
+        namespaced = namespace_metric_table(
+            metrics,
+            "river_flood_jrc_baseline",
+        )
+        self.assertEqual(
+            list(namespaced.columns),
+            ["adm_id", "river_flood_jrc_baseline_loss_total"],
+        )
+
+        identifiers = build_identifier_frame(
+            self.admin_regions,
+            self.config,
+            section="risk",
+        )
+        invalid = merge_metric_tables(identifiers, [namespaced])
+        invalid["hazard"] = "river_flood"
+        with self.assertRaisesRegex(ValueError, "removed dimensions"):
+            validate_section_output(invalid, "risk")
 
     def test_rejects_overlapping_metric_names(self) -> None:
         identifiers = build_identifier_frame(

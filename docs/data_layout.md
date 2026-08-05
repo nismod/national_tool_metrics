@@ -97,10 +97,9 @@ skeleton and configuration, but not the local datasets or generated CSVs.
 
 ## River-flood Hazard rasters
 
-The initial Hazard workflow creates one baseline JRC river-flood row per
-administrative region. Return periods are encoded in the metric column names,
-preserving the standard one-row-per-region, hazard, scenario, and model-run
-grain. Input rasters use:
+The initial Hazard workflow creates one row per administrative region. Hazard,
+model, scenario, and return-period information is encoded in metric column
+names using the `river_flood_jrc_baseline_` namespace. Input rasters use:
 
 ```text
 data/raw/<ISO3>/hazard/river_flooding/
@@ -203,8 +202,11 @@ Exposure population are accepted.
 ## Risk workflow inputs
 
 The consolidated Risk workflow creates one output row per administrative
-region, hazard, scenario, and model run. The initial Kenya runs are JRC
-baseline river flooding and STORM baseline tropical cyclone.
+region. The initial Kenya runs are JRC baseline river flooding and STORM
+baseline tropical cyclone. Their metrics are merged horizontally using the
+`river_flood_jrc_baseline_` and
+`tropical_cyclone_storm_baseline_2020_` namespaces; hazard, scenario, and model
+run are not separate output columns.
 
 JRC socioeconomic summaries use admin-level-aware filenames:
 
