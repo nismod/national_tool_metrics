@@ -1,20 +1,10 @@
-# Section-Aligned Data Layout
+# Data Layout and File Contracts
 
-The repository is migrating from the legacy `context`, `socioeconomic`,
-`infrastructure`, and `service_disruption` layout to the six sections used by
-the national tool:
+This document defines the canonical local-data structure used by the national
+tool metrics workflows. Country directories use ISO3 codes and administrative
+levels use lowercase directory names (`adm0`, `adm1`, and `adm2`).
 
-1. Hazard
-2. Exposure
-3. Vulnerability
-4. Risk
-5. Adaptation Potential
-6. Adaptation Analysis
-
-The migration is staged so that existing notebooks continue to work until
-their replacement section notebooks have been implemented and validated.
-
-## Target raw-data structure
+## Canonical structure
 
 ```text
 data/
@@ -58,48 +48,31 @@ data/
       nature_based_solutions/
 ```
 
-Adaptation Analysis input folders will be added once their inputs and
-analytical scope have been agreed.
+Adaptation Analysis inputs will be added after that section's scope is agreed.
+The empty tropical-cyclone, indirect-risk, and social-infrastructure directories
+reserve canonical locations for planned inputs.
 
-## Target results structure
+## Data tracking
 
-Each tool section has one canonical output directory:
+Raw data, boundary files, and generated results are ignored by Git. A checkout
+therefore contains the folder skeleton but not the datasets needed to execute
+the notebooks. Populate the documented paths locally and record dataset
+provenance in `docs/data_sources.md`.
 
-```text
-results/<ISO3>/
-  hazard/
-  exposure/
-  vulnerability/
-  risk/
-  adaptation_potential/
-  adaptation_analysis/
-```
+## Boundaries
 
-The standard output filename is:
+The default boundary path is derived from the country and configured level:
 
 ```text
-<ISO3>_<admin-level>_<section>_metrics.csv
+data/boundaries/<ISO3>/<admin-level>/<ISO3>_<admin-level>.shp
 ```
 
-## Staged source selection
+The Kenya configuration expects identifier and name fields called `shapeID` and
+`shapeName`. The complete shapefile sidecar set must remain beside the `.shp`.
 
-`config/countries/KEN.toml` lists the new path first and the legacy path
-second for sources that have not yet been moved. Configuration selects the
-first candidate containing data. Empty `.gitkeep` directories therefore do
-not override populated legacy locations.
+## Hazard inputs
 
-Each source directory should be moved as a complete unit. Partially copying a
-dataset into its new directory can make that incomplete directory the selected
-source.
-
-Raw and generated data are ignored by Git. GitHub records the directory
-skeleton and configuration, but not the local datasets or generated CSVs.
-
-## River-flood Hazard rasters
-
-The initial Hazard workflow creates one row per administrative region. Hazard,
-model, scenario, and return-period information is encoded in metric column
-names using the `river_flood_jrc_baseline_` namespace. Input rasters use:
+### JRC river flooding
 
 ```text
 data/raw/<ISO3>/hazard/river_flooding/
@@ -112,103 +85,99 @@ data/raw/<ISO3>/hazard/river_flooding/
   <ISO3>_jrc-flood_RP500.tif
 ```
 
-Positive raster values are treated as flood depth in metres, and no-data or
-nonpositive cells are treated as dry. For each return period, the workflow
-reports flooded area in square kilometres, flooded area as a percentage of
-the administrative region, area-weighted mean depth, and area-weighted 90th-
-percentile depth. Geographic cell areas and administrative-region areas are
-calculated geodesically. The workflow also validates aligned raster grids and
-nondecreasing flood extent with increasing return period.
+The rasters must share a CRS, transform, shape, and extent. Positive values are
+treated as flood depth in metres; nonpositive and no-data cells are dry. The
+workflow calculates flooded area, percentage of administrative area,
+area-weighted mean depth, and area-weighted 90th-percentile depth for each
+return period. Flood extent must not decrease as return period increases.
 
-Tropical-cyclone Hazard inputs and metrics are reserved for a later phase.
+Tropical-cyclone Hazard inputs are reserved for a future workflow.
 
-## Exposure WorldPop rasters
+## Exposure inputs
 
-The Exposure Population card uses pre-aggregated 90 m WorldPop rasters in:
+### Population
+
+The Population card reads eight pre-aggregated 90 m WorldPop rasters:
 
 ```text
 data/raw/<ISO3>/exposure/population/worldpop/
+  <ISO3>_worldpop_total.tif
+  <ISO3>_worldpop_female.tif
+  <ISO3>_worldpop_male.tif
+  <ISO3>_worldpop_children_under5.tif
+  <ISO3>_worldpop_school-age_5-14.tif
+  <ISO3>_worldpop_working-age_15-64.tif
+  <ISO3>_worldpop_older_65plus.tif
+  <ISO3>_worldpop_female_15-49.tif
 ```
 
-The required filenames are:
+The current Kenya population epoch is configured as 2025.
+
+### Capital stock
 
 ```text
-<ISO3>_worldpop_total.tif
-<ISO3>_worldpop_female.tif
-<ISO3>_worldpop_male.tif
-<ISO3>_worldpop_children_under5.tif
-<ISO3>_worldpop_school-age_5-14.tif
-<ISO3>_worldpop_working-age_15-64.tif
-<ISO3>_worldpop_older_65plus.tif
-<ISO3>_worldpop_female_15-49.tif
+data/raw/<ISO3>/exposure/capital_stock/
+  <ISO3>_res_capstock.tif
+  <ISO3>_nres_capstock.tif
+  <ISO3>_inf_capstock.tif
 ```
 
-## Planned migration sequence
+These produce residential, non-residential, infrastructure, and total capital-
+stock metrics.
 
-| Stage | Source | Legacy location | Target location |
-|---|---|---|---|
-| Hazard | JRC river-flood depth maps | New input | `KEN/hazard/river_flooding` |
-| Exposure | WorldPop | `KEN/context/worldpop` | `KEN/exposure/population/worldpop` |
-| Exposure | Capital stock | `KEN/context/capital_stock` | `KEN/exposure/capital_stock` |
-| Exposure | Facility counts | `KEN/context/accessibility/building_*` | `KEN/exposure/facilities` |
-| Vulnerability | RWI | `KEN/context/rwi` | `KEN/vulnerability/relative_wealth_index` |
-| Vulnerability | Wealth distribution | New input | `KEN/vulnerability/wealth_distribution` |
-| Vulnerability | Accessibility | `KEN/context/accessibility/access_*` | `KEN/vulnerability/accessibility` |
-| Risk | Socioeconomic flood risk | `KEN/socioeconomic/flooding` | `KEN/risk/socioeconomic/river_flood` |
-| Risk | Direct river-flood network risk | `KEN/infrastructure/flooding` | `KEN/risk/infrastructure_networks/direct/river_flood` |
-| Risk | Direct cyclone network risk | `KEN/infrastructure/tc` | `KEN/risk/infrastructure_networks/direct/tropical_cyclone` |
-| Risk | Indirect network risk | Existing source to be confirmed | `KEN/risk/infrastructure_networks/indirect/tropical_cyclone` |
-| Adaptation Potential | FLOPROS protection standards | New input | `KEN/adaptation_potential` |
-| Adaptation Potential | Nature-based solutions | `global` | `global/nature_based_solutions` |
+### Networks and facilities
 
-The existing road, rail, and power risk files also provide the geometries used
-by the Exposure workflow. They live under Risk in the target layout and are
-referenced by Exposure through the country configuration, avoiding duplicate
-copies.
-
-## Precomputed Vulnerability summaries
-
-Precomputed Relative Wealth Index summaries use:
+Exposure reuses the canonical road, rail, and power files stored under Risk,
+avoiding duplicate geometry files. Government hospital and school counts use:
 
 ```text
-data/raw/KEN/vulnerability/relative_wealth_index/
+data/raw/<ISO3>/exposure/facilities/
+  building_hospitals_gov_summary_<ADMIN-LEVEL>__<ISO3>.csv
+  building_schools_gov_summary_<ADMIN-LEVEL>__<ISO3>.csv
+```
+
+## Vulnerability inputs
+
+### Relative Wealth Index
+
+```text
+data/raw/<ISO3>/vulnerability/relative_wealth_index/
   <ISO3>_rwi_summary_<ADMIN-LEVEL>.gpkg
 ```
 
-with layer name `<ISO3>_rwi_summary_<ADMIN-LEVEL>` and columns:
+The GeoPackage layer has the same name as the file stem and contains `shapeID`,
+`shapeName`, `average_rwi`, and `population_weighted_rwi`.
+
+### Wealth distribution
 
 ```text
-shapeID
-shapeName
-average_rwi
-population_weighted_rwi
-```
-
-Precomputed wealth-distribution summaries use:
-
-```text
-data/raw/KEN/vulnerability/wealth_distribution/
+data/raw/<ISO3>/vulnerability/wealth_distribution/
   <ISO3>_pop_wealth_summary_<ADMIN-LEVEL>.gpkg
 ```
 
-with layer name `<ISO3>_pop_wealth_summary_<ADMIN-LEVEL>` and columns
-`shapeID`, `shapeName`, and `q1_total` through `q5_total`.
+The corresponding layer contains `shapeID`, `shapeName`, and `q1_total` through
+`q5_total`. Quintile totals must be finite, nonnegative, and cover every selected
+administrative region.
 
-The pipeline requires complete administrative coverage, unique identifiers,
-finite values, and nonnegative quintile populations. Small regional
-differences between the sum of quintiles and the independently aggregated
-Exposure population are accepted.
+### Accessibility
 
-## Risk workflow inputs
+```text
+data/raw/<ISO3>/vulnerability/accessibility/
+  access_<facility>_gov_<mode>_summary_<ADMIN-LEVEL>_<group>__<ISO3>.csv
+```
 
-The consolidated Risk workflow creates one output row per administrative
-region. The initial Kenya runs are JRC baseline river flooding and STORM
-baseline tropical cyclone. Their metrics are merged horizontally using the
-`river_flood_jrc_baseline_` and
-`tropical_cyclone_storm_baseline_2020_` namespaces; hazard, scenario, and model
-run are not separate output columns.
+The workflow expects hospitals and schools; walking and motorized modes; and
+the total, female, male, infant, school-age, working-age, childbearing-age, and
+elderly population groups. This produces 32 baseline travel-time metrics.
 
-JRC socioeconomic summaries use admin-level-aware filenames:
+## Risk inputs
+
+Risk produces one row per administrative region. The currently configured runs
+are JRC baseline river flooding and STORM baseline tropical cyclone for epoch
+2020. Metrics are namespaced with `river_flood_jrc_baseline_` and
+`tropical_cyclone_storm_baseline_2020_`.
+
+### Socioeconomic river-flood risk
 
 ```text
 data/raw/<ISO3>/risk/socioeconomic/river_flood/
@@ -217,23 +186,13 @@ data/raw/<ISO3>/risk/socioeconomic/river_flood/
   <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_RP<RETURN-PERIOD>_baseline_capstock.gpkg
 ```
 
-The layer names match the corresponding filename stems. The Population Risk
-card uses `risk_map = AAR_protected` as its protection-adjusted annual-average
-metric and includes `RP10`, `RP20`, `RP50`, `RP75`, `RP100`, `RP200`, and
-`RP500` event exposure metrics for all eight demographic groups and five
-wealth quintiles. The risk map is encoded in each metric column name, so the
-return periods do not introduce another output row dimension. Adding
-consistently named ADM2 summaries is sufficient for the workflow to discover
-them after `admin_level` is changed.
+Return periods are 10, 20, 50, 75, 100, 200, and 500 years. GeoPackage layer
+names match their file stems. Population risk includes the eight demographic
+groups and five wealth quintiles. Capital-stock risk includes residential,
+non-residential, infrastructure, and total losses. Administrative coverage and
+component-to-total reconciliation are validated.
 
-The Capital Stock Risk card uses the protection-adjusted AAR file plus
-separate `RP10`, `RP20`, `RP50`, `RP75`, `RP100`, `RP200`, and `RP500` files.
-Each file contains residential, non-residential, infrastructure, and total
-losses. Return-period losses are encoded in metric column names and retain the
-same output row grain. Each file must have complete administrative coverage,
-nonnegative finite values, and exact component-to-total reconciliation.
-
-Direct network risk uses:
+### Direct network risk
 
 ```text
 data/raw/<ISO3>/risk/infrastructure_networks/direct/river_flood/
@@ -244,65 +203,80 @@ data/raw/<ISO3>/risk/infrastructure_networks/direct/tropical_cyclone/
   power.gpkg
 ```
 
-Indirect infrastructure risk is reserved for tropical cyclone only and will
-be added when its source schema is available. Social-infrastructure risk is
-produced by a separate workflow and is not calculated by this repository
-phase.
+The road and rail files supply both Exposure geometries and JRC expected annual
+damage attributes. The power file supplies Exposure geometry and STORM baseline
+2020 expected annual damage. Indirect network risk is reserved for tropical
+cyclone only. Social-infrastructure risk is supplied separately.
 
-## Adaptation Potential workflow inputs
+## Adaptation Potential inputs
 
-The Adaptation Potential workflow creates one baseline row per administrative
-region. Existing flood protection is read from:
-
-```text
-data/raw/<ISO3>/adaptation_potential/<ISO3>_flopros.tif
-```
-
-FLOPROS is treated as a raw return period. Zero-valued cells are excluded as
-no-data and the metric is the modal positive return period in each region;
-ties are resolved to the lower return period.
-
-Nature-based solution inputs are stored in:
-
-```text
-data/raw/global/nature_based_solutions/
-```
-
-The required opportunity rasters are `G_LandslideNbS_123_9s.tif` for slope
-vegetation, `ManRestorClass_9s.tif` for mangroves, and
-`G_PotentialNonCoastalTreeNBS_9s.tif` for river catchment restoration. Generic
-planting and regeneration costs use `G_PlantingCost_9s.tif` and
-`G_RegenCost_9s.tif`; mangroves use `ManPlantCost_9s.tif` and
-`ManRegenCost_9s.tif`. Carbon and biodiversity co-benefits use
-`G_CarbonBenefit_9s.tif` and `G_BioBenefit_9s.tif` for all three classes.
-
-The source documentation's nominal 9-arcsecond cell assumption is retained:
-each fully restored opportunity cell represents 6.25 hectares. Cost and
-carbon totals multiply valid per-hectare values by this area. Biodiversity is
-reported as a mean over valid opportunity cells. The cost, carbon, and
-biodiversity metrics retain both headline totals and category-level results.
-Slope vegetation is split into other land cover, crops, and bare ground;
-mangroves are split into accreting, static or moderately retreating, and
-fast-retreating shoreline conditions. Planting cost, regeneration cost, and
-carbon category totals reconcile to their corresponding NbS-class totals.
-River catchment restoration remains a total because its opportunity raster is
-binary. Mangrove cells outside an administrative polygon are assigned to the
-nearest region only when it is within 5 km; all other opportunity cells are
-assigned by cell centre.
-
-The River Network Context card uses:
+### Existing flood protection and river context
 
 ```text
 data/raw/<ISO3>/adaptation_potential/
+  <ISO3>_flopros.tif
   <ISO3>_river_network.gpkg
   <ISO3>_ghs-mod.tif
 ```
 
-River geometries are clipped to administrative boundaries, divided at
-urbanisation raster-cell edges, and measured geodesically. GHS-SMOD classes
-10, 11, 12, and 13 are grouped as rural (including class 10 water); classes
-21, 22, and 23 are grouped as town; and class 30 is grouped as city. Total,
-rural, town, and city river lengths are reported in kilometres, and the three
-grouped lengths must reconcile to the total. Where small boundary differences
-place river geometry on raster no-data cells, the nearest valid urbanisation
-class within 5 km is used.
+FLOPROS values are raw protection return periods. Zero is excluded as no-data,
+and the output reports the modal positive value in each region, resolving ties
+to the lower return period.
+
+River geometries are clipped to administrative boundaries and measured
+geodesically. GHS-SMOD classes 10–13 are grouped as rural, including water;
+classes 21–23 are town; and class 30 is city. The nearest valid urbanisation
+class within 5 km may fill small raster no-data gaps.
+
+### Nature-based solutions
+
+```text
+data/raw/global/nature_based_solutions/
+  G_LandslideNbS_123_9s.tif
+  G_PotentialNonCoastalTreeNBS_9s.tif
+  ManRestorClass_9s.tif
+  G_PlantingCost_9s.tif
+  G_RegenCost_9s.tif
+  ManPlantCost_9s.tif
+  ManRegenCost_9s.tif
+  G_CarbonBenefit_9s.tif
+  G_BioBenefit_9s.tif
+```
+
+The three opportunity classes are slope vegetation, river-catchment
+restoration, and mangroves. Slope vegetation is split by current land cover;
+mangroves are split by shoreline condition. Planting and regeneration are
+reported as separate cost options.
+
+The source documentation describes the rasters as 9 arcseconds and applies a
+nominal restored-cell area of 6.25 hectares. Cost and carbon values are scaled
+by that area; biodiversity is averaged over valid opportunity cells. Mangrove
+cells outside a polygon may be assigned to the nearest region within 5 km.
+
+## Results
+
+Each implemented notebook writes one canonical CSV:
+
+```text
+results/<ISO3>/<section>/<ISO3>_<admin-level>_<section>_metrics.csv
+```
+
+The six identifier columns are:
+
+```text
+country_iso3, country_name, admin_level, adm_id, adm_name, section
+```
+
+All other columns are metrics. Hazard, model, scenario, epoch, and return-
+period distinctions are encoded in metric names. Each combination of country,
+administrative level, administrative identifier, and section must be unique.
+
+## Adding another country or administrative level
+
+1. Add `config/countries/<ISO3>.toml` with canonical source paths.
+2. Add the required boundary layer under `data/boundaries/<ISO3>/`.
+3. Populate each implemented section's input contract for the selected level.
+4. Record source provenance in `docs/data_sources.md`.
+5. Run the automated tests and then execute each applicable notebook.
+6. Check row coverage, metric names, units, and reconciliation rules before
+   publishing the CSVs.

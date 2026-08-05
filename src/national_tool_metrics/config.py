@@ -34,45 +34,11 @@ def _resolve_path(repo_root: Path, value: str) -> Path:
     return path if path.is_absolute() else repo_root / path
 
 
-def _path_candidates(
-    repo_root: Path,
-    value: object,
-    label: str,
-) -> tuple[Path, ...]:
-    """Parse one path or an ordered list of migration-compatible paths."""
-    if isinstance(value, str) and value.strip():
-        raw_paths = [value.strip()]
-    elif (
-        isinstance(value, list)
-        and value
-        and all(isinstance(item, str) and item.strip() for item in value)
-    ):
-        raw_paths = [item.strip() for item in value]
-    else:
-        raise ValueError(
-            f"{label} must be a path string or a non-empty list of path strings"
-        )
-    return tuple(_resolve_path(repo_root, item) for item in raw_paths)
-
-
-def _path_contains_data(path: Path) -> bool:
-    """Distinguish a populated source from an empty tracked skeleton."""
-    if path.is_file():
-        return True
-    if not path.is_dir():
-        return False
-    return any(
-        item.is_file() and item.name != ".gitkeep"
-        for item in path.rglob("*")
-    )
-
-
-def _select_path_candidate(candidates: tuple[Path, ...]) -> Path:
-    """Select the first populated candidate, falling back to the first path."""
-    return next(
-        (path for path in candidates if _path_contains_data(path)),
-        candidates[0],
-    )
+def _configured_path(repo_root: Path, value: object, label: str) -> Path:
+    """Parse one required configuration path relative to the repository."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty path string")
+    return _resolve_path(repo_root, value.strip())
 
 
 def default_boundary_path(
@@ -127,7 +93,6 @@ class RiskRunConfig:
 
     name: str
     inputs: dict[str, Path]
-    input_candidates: dict[str, tuple[Path, ...]]
     layers: dict[str, str]
     columns: dict[str, str]
 
@@ -139,7 +104,6 @@ class PipelineConfig:
     country: CountryConfig
     boundaries: BoundaryConfig
     sources: dict[str, Path]
-    source_candidates: dict[str, tuple[Path, ...]]
     parameters: dict[str, int | float | str | bool]
     risk_runs: dict[str, RiskRunConfig]
 
@@ -226,13 +190,9 @@ def load_country_config(
     )
 
     source_table = _require_table(raw, "sources")
-    source_candidates = {
-        name: _path_candidates(root, value, f"[sources].{name}")
-        for name, value in source_table.items()
-    }
     sources = {
-        name: _select_path_candidate(candidates)
-        for name, candidates in source_candidates.items()
+        name: _configured_path(root, value, f"[sources].{name}")
+        for name, value in source_table.items()
     }
 
     parameters = raw.get("parameters", {})
@@ -260,8 +220,8 @@ def load_country_config(
                 "must be TOML tables"
             )
 
-        input_candidates = {
-            name: _path_candidates(
+        inputs = {
+            name: _configured_path(
                 root,
                 value,
                 f"[risk_runs.{run_name}.inputs].{name}",
@@ -270,11 +230,7 @@ def load_country_config(
         }
         risk_runs[run_name] = RiskRunConfig(
             name=run_name,
-            inputs={
-                name: _select_path_candidate(candidates)
-                for name, candidates in input_candidates.items()
-            },
-            input_candidates=input_candidates,
+            inputs=inputs,
             layers={
                 str(name): str(value)
                 for name, value in layers_table.items()
@@ -295,7 +251,6 @@ def load_country_config(
         ),
         boundaries=boundaries,
         sources=sources,
-        source_candidates=source_candidates,
         parameters=parameters,
         risk_runs=risk_runs,
     )

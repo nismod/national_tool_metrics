@@ -1,35 +1,39 @@
 # National Tool Metrics
 
-This repository provides a simple workflow for converting OPSIS risk model outputs and context datasets into standardized sub-national metrics for an interactive national tool.
+This repository converts hazard, exposure, vulnerability, risk, and adaptation
+datasets into standardized subnational metrics for an interactive national
+tool. Kenya (`KEN`) is the implemented reference country.
 
-The repository is being migrated to the tool's six-section structure:
-Hazard, Exposure, Vulnerability, Risk, Adaptation Potential, and Adaptation
-Analysis. See [`docs/data_layout.md`](docs/data_layout.md) for the target
-folder structure, compatibility behaviour, and staged move sequence. Legacy
-input folders remain temporarily so existing notebooks continue to work.
+Each implemented tool section has one notebook and produces one CSV with one
+row per administrative region. Hazard, scenario, model, epoch, and return-period
+distinctions are encoded in metric column names rather than additional rows.
 
-The aim is to keep the process lightweight and repeatable:
+## Implementation status
 
-1. Store country boundary layers in a consistent structure.
-2. Store raw input data by country and tool section.
-3. Use one notebook per tool section to summarize inputs to administrative regions.
-4. Export clean CSV files with one row per sub-national region and one column per metric.
+| Tool section | Current scope | Status |
+|---|---|---|
+| Hazard | JRC river-flood extent and depth for seven return periods | Implemented |
+| Exposure | Population, capital stock, roads, rail, power, hospitals, and schools | Implemented |
+| Vulnerability | Relative Wealth Index, wealth distribution, and baseline accessibility | Implemented |
+| Risk | Socioeconomic river-flood risk and direct infrastructure-network risk | Implemented |
+| Adaptation Potential | FLOPROS, nature-based solutions, and river-network context | Implemented |
+| Adaptation Analysis | Outcomes and comparisons | Scope to be agreed |
 
-Country folders should use ISO3 codes. The first test country is `KEN`. The first hazard for the risk modules is flooding, but the folder structure is designed to allow additional hazards later.
+Tropical-cyclone Hazard metrics, indirect tropical-cyclone network risk, and
+social-infrastructure risk are not yet produced by this repository. The social-
+infrastructure risk component will be supplied by a separate workflow.
 
-## Repository Structure
+## Repository structure
 
 ```text
 national_tool_metrics/
+  config/
+    countries/
+      KEN.toml
   data/
-    boundaries/
-      KEN/
-        adm0/
-        adm1/
-        adm2/
-
+    boundaries/<ISO3>/<admin-level>/
     raw/
-      KEN/
+      <ISO3>/
         hazard/
         exposure/
         vulnerability/
@@ -37,85 +41,79 @@ national_tool_metrics/
         adaptation_potential/
       global/
         nature_based_solutions/
-
-  notebooks/
-
-  src/
-
-  results/
-    KEN/
-      hazard/
-      exposure/
-      vulnerability/
-      risk/
-      adaptation_potential/
-      adaptation_analysis/
-
   docs/
+    data_layout.md
+    data_sources.md
+    metric_dictionary.csv
+  notebooks/
+    01_hazard_metrics.ipynb
+    02_exposure_metrics.ipynb
+    03_vulnerability_metrics.ipynb
+    04_risk_metrics.ipynb
+    05_adaptation_potential_metrics.ipynb
+  results/<ISO3>/<section>/
+  src/national_tool_metrics/
+  tests/
 ```
 
-## Tool Sections
+See [the data-layout specification](docs/data_layout.md) for required paths and
+filenames. Dataset provenance and metadata are recorded in
+[the data-source manifest](docs/data_sources.md).
 
-The tool sections are:
+## Environment setup
 
-- `hazard`: river-flood extent and depth by return period, with tropical-cyclone metrics to follow.
-- `exposure`: population, demographics, capital stock, networks, and facilities.
-- `vulnerability`: relative wealth, wealth distribution, and baseline accessibility.
-- `risk`: socioeconomic, infrastructure-network, and social-infrastructure risk.
-- `adaptation_potential`: existing flood protection, nature-based solution potential, and river-network context.
-- `adaptation_analysis`: outcomes and comparisons; scope to be agreed.
+Create and activate the Conda environment from the repository root:
 
-## Boundary Data
-
-Country boundary layers should be stored under:
-
-```text
-data/boundaries/<ISO3>/
+```powershell
+conda env create -f environment.yml
+conda activate tooling
 ```
 
-For `KEN`, the current folders are:
+If the environment already exists, update it after dependency changes:
 
-```text
-data/boundaries/KEN/adm0/
-data/boundaries/KEN/adm1/
-data/boundaries/KEN/adm2/
+```powershell
+conda env update -f environment.yml --prune
 ```
 
-Each boundary layer should include a stable administrative identifier that can be carried into the final metric CSVs.
+## Country configuration
 
-## Notebook Workflow
+Country settings and input paths are defined in
+[`config/countries/KEN.toml`](config/countries/KEN.toml). The default output
+level is controlled by one value:
 
-Each implemented tool section should have one notebook in `notebooks/`.
-
-The notebooks should follow the same broad pattern:
-
-1. Load the country configuration and administrative level.
-2. Load the relevant boundary layer.
-3. Load the raw input data.
-4. Clean and standardize input columns.
-5. Summarize or aggregate the data to the chosen administrative level.
-6. Create metric columns.
-7. Export a standardized CSV to `results/`.
-
-Target notebook names:
-
-```text
-notebooks/01_hazard_metrics.ipynb
-notebooks/02_exposure_metrics.ipynb
-notebooks/03_vulnerability_metrics.ipynb
-notebooks/04_risk_metrics.ipynb
-notebooks/05_adaptation_potential_metrics.ipynb
-notebooks/06_adaptation_analysis_metrics.ipynb
+```toml
+[country]
+admin_level = "adm1"
 ```
 
-Superseded notebooks are retained under `notebooks/legacy/` for reference
-only. They do not define the canonical section outputs.
+Change this to `adm0` or `adm2` to use another administrative level. The
+matching boundary layer and all admin-level-specific input summaries must exist
+before running a notebook. Kenya currently has both ADM1 and ADM2 boundaries,
+but not every workflow input is available at both levels.
 
-## Output Format
+## Running the workflows
 
-Each notebook should produce one CSV with one row per sub-national region.
+Start Jupyter from the repository root:
 
-Suggested standard identifier columns:
+```powershell
+jupyter notebook
+```
+
+Run the notebook for the section you want to rebuild:
+
+1. `notebooks/01_hazard_metrics.ipynb`
+2. `notebooks/02_exposure_metrics.ipynb`
+3. `notebooks/03_vulnerability_metrics.ipynb`
+4. `notebooks/04_risk_metrics.ipynb`
+5. `notebooks/05_adaptation_potential_metrics.ipynb`
+
+The notebooks are section-specific and do not need to be run as one continuous
+pipeline. Each notebook loads the country configuration, validates its inputs,
+builds the section table, and writes the corresponding CSV under `results/`.
+
+## Output contract
+
+Every section CSV has one row per administrative region and starts with:
 
 ```text
 country_iso3
@@ -126,32 +124,42 @@ adm_name
 section
 ```
 
-These are followed by the metric columns created by the notebook. Each section
-contains one row per administrative region. Hazard, model, scenario, and epoch
-distinctions are encoded in metric names when they vary, using hazard-first
-namespaces such as `river_flood_jrc_baseline_` and
-`tropical_cyclone_storm_baseline_2020_`.
-
-Example output path:
+Metric columns follow these identifiers. Where a metric varies by hazard,
+model, scenario, epoch, or return period, those dimensions are included in the
+column name. Examples include:
 
 ```text
-results/KEN/risk/KEN_adm2_risk_metrics.csv
+river_flood_jrc_baseline_flooded_area_rp100_km2
+tropical_cyclone_storm_baseline_2020_power_ead_total
 ```
 
-## Metric Dictionary
-
-Metric definitions should be documented in:
+The standard output path is:
 
 ```text
-docs/metric_dictionary.csv
+results/<ISO3>/<section>/<ISO3>_<admin-level>_<section>_metrics.csv
 ```
 
-Suggested columns:
+Metric definitions, units, and aggregation methods are maintained in
+[`docs/metric_dictionary.csv`](docs/metric_dictionary.csv). Its `hazard` column
+is descriptive metadata and is not an identifier in the section CSVs.
 
-```text
-module,hazard,metric_name,description,unit,aggregation_method,source_notes
+## Data and Git
+
+Raw data, boundary files, and generated results are intentionally ignored by
+Git because they can be large or restricted. Git tracks the directory skeleton,
+configuration, notebooks, reusable Python code, tests, and documentation.
+
+Before running a workflow on a new checkout, populate the paths documented in
+`docs/data_layout.md`. Do not commit local datasets or generated CSVs.
+
+## Tests
+
+From PowerShell in the repository root:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests
 ```
 
-The dictionary retains `hazard` as descriptive metadata, but `hazard` is not
-an identifier column in the section CSVs. This file should make it clear what
-each output column means and how it was calculated.
+The tests cover configuration parsing, output contracts, section assembly,
+metric-dictionary coverage, and representative raster/vector calculations.

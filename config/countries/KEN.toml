@@ -9,40 +9,15 @@ id_field = "shapeID"
 name_field = "shapeName"
 
 [sources]
-# During the staged migration, the first populated path is selected.
-worldpop_dir = [
-  "data/raw/KEN/exposure/population/worldpop",
-  "data/raw/KEN/context/worldpop",
-]
-capital_stock_dir = [
-  "data/raw/KEN/exposure/capital_stock",
-  "data/raw/KEN/context/capital_stock",
-]
-facility_dir = [
-  "data/raw/KEN/exposure/facilities",
-  "data/raw/KEN/context/accessibility",
-]
-road_network = [
-  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg",
-  "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg",
-]
-rail_network = [
-  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg",
-  "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg",
-]
-power_network = [
-  "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg",
-  "data/raw/KEN/infrastructure/tc/power.gpkg",
-]
-rwi_dir = [
-  "data/raw/KEN/vulnerability/relative_wealth_index",
-  "data/raw/KEN/context/rwi",
-]
+worldpop_dir = "data/raw/KEN/exposure/population/worldpop"
+capital_stock_dir = "data/raw/KEN/exposure/capital_stock"
+facility_dir = "data/raw/KEN/exposure/facilities"
+road_network = "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg"
+rail_network = "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg"
+power_network = "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg"
+rwi_dir = "data/raw/KEN/vulnerability/relative_wealth_index"
 wealth_distribution_dir = "data/raw/KEN/vulnerability/wealth_distribution"
-accessibility_dir = [
-  "data/raw/KEN/vulnerability/accessibility",
-  "data/raw/KEN/context/accessibility",
-]
+accessibility_dir = "data/raw/KEN/vulnerability/accessibility"
 river_flood_hazard_dir = "data/raw/KEN/hazard/river_flooding"
 adaptation_potential_dir = "data/raw/KEN/adaptation_potential"
 nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
@@ -61,22 +36,10 @@ nbs_nominal_cell_area_ha = 6.25
 [risk_runs.river_flood_jrc_baseline.inputs]
 # The workflow derives admin-level-specific filenames and layer names in these
 # directories, so adding ADM2 summaries will not require a second run bundle.
-population_risk_dir = [
-  "data/raw/KEN/risk/socioeconomic/river_flood",
-  "data/raw/KEN/socioeconomic/flooding",
-]
-capital_stock_risk_dir = [
-  "data/raw/KEN/risk/socioeconomic/river_flood",
-  "data/raw/KEN/socioeconomic/flooding",
-]
-road_damage = [
-  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg",
-  "data/raw/KEN/infrastructure/flooding/river-jrc_road_damages.gpkg",
-]
-rail_damage = [
-  "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg",
-  "data/raw/KEN/infrastructure/flooding/river-jrc_rail_damages.gpkg",
-]
+population_risk_dir = "data/raw/KEN/risk/socioeconomic/river_flood"
+capital_stock_risk_dir = "data/raw/KEN/risk/socioeconomic/river_flood"
+road_damage = "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg"
+rail_damage = "data/raw/KEN/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg"
 
 [risk_runs.river_flood_jrc_baseline.columns]
 road_ead = "hazard-floodMapGL_EAD"
@@ -85,10 +48,7 @@ rail_ead = "hazard-floodMapGL_EAD"
 [risk_runs.tropical_cyclone_storm_baseline_2020]
 
 [risk_runs.tropical_cyclone_storm_baseline_2020.inputs]
-power_damage = [
-  "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg",
-  "data/raw/KEN/infrastructure/tc/power.gpkg",
-]
+power_damage = "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg"
 
 [risk_runs.tropical_cyclone_storm_baseline_2020.columns]
 power_ead = "ead__cyclone__rcp_baseline__epoch_2020"

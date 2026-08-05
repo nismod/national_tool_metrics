@@ -1,10 +1,8 @@
 from dataclasses import replace
 from pathlib import Path
 import unittest
-from unittest.mock import patch
 
 from national_tool_metrics.config import (
-    _select_path_candidate,
     default_boundary_path,
     load_country_config,
 )
@@ -43,17 +41,13 @@ class CountryConfigTests(unittest.TestCase):
         )
         self.assertIn("power_damage", cyclone_run.inputs)
 
-    def test_loads_new_first_migration_candidates(self) -> None:
+    def test_loads_canonical_section_sources(self) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
 
-        worldpop_candidates = config.source_candidates["worldpop_dir"]
         flood_run = config.risk_run("river_flood_jrc_baseline")
-        population_risk_candidates = flood_run.input_candidates[
-            "population_risk_dir"
-        ]
 
         self.assertEqual(
-            worldpop_candidates[0],
+            config.source("worldpop_dir"),
             REPO_ROOT
             / "data"
             / "raw"
@@ -63,11 +57,7 @@ class CountryConfigTests(unittest.TestCase):
             / "worldpop",
         )
         self.assertEqual(
-            worldpop_candidates[1],
-            REPO_ROOT / "data" / "raw" / "KEN" / "context" / "worldpop",
-        )
-        self.assertEqual(
-            population_risk_candidates[0],
+            flood_run.inputs["population_risk_dir"],
             REPO_ROOT
             / "data"
             / "raw"
@@ -89,20 +79,6 @@ class CountryConfigTests(unittest.TestCase):
         self.assertTrue(
             flood_run.inputs["capital_stock_risk_dir"].is_dir()
         )
-
-    def test_empty_new_skeleton_falls_back_to_populated_legacy_path(
-        self,
-    ) -> None:
-        new_path = Path("new/source")
-        legacy_path = Path("legacy/source")
-
-        with patch(
-            "national_tool_metrics.config._path_contains_data",
-            side_effect=lambda path: path == legacy_path,
-        ):
-            selected = _select_path_candidate((new_path, legacy_path))
-
-        self.assertEqual(selected, legacy_path)
 
     def test_builds_canonical_section_output_path(self) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
