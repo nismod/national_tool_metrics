@@ -39,9 +39,11 @@ national_tool_metrics/
         vulnerability/
         risk/
         adaptation_potential/
+        concentration_curves/
       global/
         nature_based_solutions/
   docs/
+    concentration_curves.md
     data_layout.md
     data_sources.md
     metric_dictionary.csv
@@ -51,7 +53,10 @@ national_tool_metrics/
     03_vulnerability_metrics.ipynb
     04_risk_metrics.ipynb
     05_adaptation_potential_metrics.ipynb
-  results/<ISO3>/<section>/
+    concentration_curves.ipynb
+  results/<ISO3>/
+    <section>/
+    concentration_curves/
   src/national_tool_metrics/
   tests/
 ```
@@ -106,10 +111,17 @@ Run the notebook for the section you want to rebuild:
 3. `notebooks/03_vulnerability_metrics.ipynb`
 4. `notebooks/04_risk_metrics.ipynb`
 5. `notebooks/05_adaptation_potential_metrics.ipynb`
+6. `notebooks/concentration_curves.ipynb`
 
 The notebooks are section-specific and do not need to be run as one continuous
 pipeline. Each notebook loads the country configuration, validates its inputs,
 builds the section table, and writes the corresponding CSV under `results/`.
+
+The unnumbered concentration-curve notebook is shared across multiple tool
+sections. It validates the curves registered in the country configuration and
+writes one country-level wide CSV. See
+[`docs/concentration_curves.md`](docs/concentration_curves.md) for its distinct
+file contract and naming convention.
 
 ## Output contract
 

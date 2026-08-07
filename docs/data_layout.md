@@ -44,6 +44,8 @@ data/
 
       adaptation_potential/
 
+      concentration_curves/
+
     global/
       nature_based_solutions/
 ```
@@ -51,6 +53,11 @@ data/
 Adaptation Analysis inputs will be added after that section's scope is agreed.
 The empty tropical-cyclone, indirect-risk, and social-infrastructure directories
 reserve canonical locations for planned inputs.
+
+Concentration curves are country-level inputs shared by socioeconomic,
+adaptation-analysis, accessibility, and other tool areas. Their detailed input,
+registry, and output contract is defined in
+[`concentration_curves.md`](concentration_curves.md).
 
 ## Data tracking
 
@@ -274,6 +281,13 @@ country_iso3, country_name, admin_level, adm_id, adm_name, section
 All other columns are metrics. Hazard, model, scenario, epoch, and return-
 period distinctions are encoded in metric names. Each combination of country,
 administrative level, administrative identifier, and section must be unique.
+
+Concentration curves use a separate country-level output because their rows are
+cumulative population shares rather than administrative regions:
+
+```text
+results/<ISO3>/concentration_curves/<ISO3>_concentration_curves.csv
+```
 
 ## Adding another country or administrative level
 

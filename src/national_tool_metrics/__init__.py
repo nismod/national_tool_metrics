@@ -1,6 +1,7 @@
 """Shared foundations for the national tool metrics workflows."""
 
 from .config import (
+    ConcentrationCurveConfig,
     CountryConfig,
     PipelineConfig,
     RiskRunConfig,
@@ -10,6 +11,7 @@ from .config import (
 from .outputs import IDENTIFIER_COLUMNS
 
 __all__ = [
+    "ConcentrationCurveConfig",
     "CountryConfig",
     "IDENTIFIER_COLUMNS",
     "PipelineConfig",

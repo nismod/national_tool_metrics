@@ -28,6 +28,7 @@ explicitly unresolved rather than inferred from filenames.
 | Adaptation Potential | River network | `data/raw/KEN/adaptation_potential/KEN_river_network.gpkg` | River length by administrative region and urbanisation group | Provider, network selection criteria, extraction date, and licence: **confirmation required** |
 | Adaptation Potential | GHS-SMOD | `data/raw/KEN/adaptation_potential/KEN_ghs-mod.tif` | Urbanisation classification grouped to rural, town, and city | GHS-SMOD release epoch, local raster modifications, and licence: **confirmation required** |
 | Adaptation Potential | Global NbS opportunity, cost, carbon, and biodiversity layers | `data/raw/global/nature_based_solutions/*.tif` | Global 9-arcsecond layers with a nominal 6.25 ha restored cell | Dataset title and acknowledgement recorded below; release identifier, download location, and licence: **confirmation required** |
+| Cross-section | Concentration curves | `data/raw/KEN/concentration_curves/*.csv` | Precomputed cumulative outcome shares by cumulative population share; individual curves and ranking metadata are registered in `config/countries/KEN.toml` | Upstream construction workflow, population basis, risk definition, processing date, and licence: **confirmation required** |
 
 ## Nature-based solutions metadata
 

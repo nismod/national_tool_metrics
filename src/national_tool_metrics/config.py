@@ -98,6 +98,19 @@ class RiskRunConfig:
 
 
 @dataclass(frozen=True)
+class ConcentrationCurveConfig:
+    """One precomputed concentration curve and its interpretation metadata."""
+
+    name: str
+    path: Path
+    x_column: str
+    y_column: str
+    ranked_by: str
+    rank_direction: str
+    description: str
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     repo_root: Path
     config_path: Path
@@ -106,6 +119,7 @@ class PipelineConfig:
     sources: dict[str, Path]
     parameters: dict[str, int | float | str | bool]
     risk_runs: dict[str, RiskRunConfig]
+    concentration_curves: dict[str, ConcentrationCurveConfig]
 
     def source(self, name: str) -> Path:
         try:
@@ -118,6 +132,23 @@ class PipelineConfig:
             return self.risk_runs[name]
         except KeyError as error:
             raise KeyError(f"Unknown configured risk run: {name}") from error
+
+    def concentration_curve(self, name: str) -> ConcentrationCurveConfig:
+        try:
+            return self.concentration_curves[name]
+        except KeyError as error:
+            raise KeyError(
+                f"Unknown configured concentration curve: {name}"
+            ) from error
+
+    def concentration_curve_output_path(self) -> Path:
+        return (
+            self.repo_root
+            / "results"
+            / self.country.iso3
+            / "concentration_curves"
+            / f"{self.country.iso3}_concentration_curves.csv"
+        )
 
     def output_path(self, section: str) -> Path:
         section_slug = section.strip().lower()
@@ -241,6 +272,37 @@ def load_country_config(
             },
         )
 
+    concentration_curve_table = raw.get("concentration_curves", {})
+    if not isinstance(concentration_curve_table, dict):
+        raise ValueError("[concentration_curves] must be a TOML table")
+
+    concentration_curves: dict[str, ConcentrationCurveConfig] = {}
+    for curve_name, curve_values in concentration_curve_table.items():
+        table_name = f"concentration_curves.{curve_name}"
+        if not isinstance(curve_values, dict):
+            raise ValueError(f"[{table_name}] must be a TOML table")
+        concentration_curves[curve_name] = ConcentrationCurveConfig(
+            name=curve_name,
+            path=_configured_path(
+                root,
+                curve_values.get("path"),
+                f"[{table_name}].path",
+            ),
+            x_column=_require_string(curve_values, "x_column", table_name),
+            y_column=_require_string(curve_values, "y_column", table_name),
+            ranked_by=_require_string(curve_values, "ranked_by", table_name),
+            rank_direction=_require_string(
+                curve_values,
+                "rank_direction",
+                table_name,
+            ),
+            description=_require_string(
+                curve_values,
+                "description",
+                table_name,
+            ),
+        )
+
     return PipelineConfig(
         repo_root=root,
         config_path=config_path,
@@ -253,4 +315,5 @@ def load_country_config(
         sources=sources,
         parameters=parameters,
         risk_runs=risk_runs,
+        concentration_curves=concentration_curves,
     )
