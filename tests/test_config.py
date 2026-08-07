@@ -12,6 +12,58 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class CountryConfigTests(unittest.TestCase):
+    def test_loads_mozambique_country_and_source_settings(self) -> None:
+        config = load_country_config("MOZ", repo_root=REPO_ROOT)
+
+        self.assertEqual(config.country.iso3, "MOZ")
+        self.assertEqual(config.country.name, "Mozambique")
+        self.assertEqual(config.country.admin_level, "adm1")
+        self.assertEqual(
+            config.boundaries.path,
+            REPO_ROOT
+            / "data"
+            / "boundaries"
+            / "MOZ"
+            / "adm1"
+            / "MOZ_adm1.shp",
+        )
+        self.assertEqual(
+            config.source("worldpop_dir"),
+            REPO_ROOT
+            / "data"
+            / "raw"
+            / "MOZ"
+            / "exposure"
+            / "population"
+            / "worldpop",
+        )
+        self.assertEqual(
+            config.risk_run("river_flood_jrc_baseline").inputs[
+                "population_risk_dir"
+            ],
+            REPO_ROOT
+            / "data"
+            / "raw"
+            / "MOZ"
+            / "risk"
+            / "socioeconomic"
+            / "river_flood",
+        )
+        self.assertEqual(
+            config.risk_run(
+                "tropical_cyclone_storm_baseline_2020"
+            ).inputs["power_damage"],
+            REPO_ROOT
+            / "data"
+            / "raw"
+            / "MOZ"
+            / "risk"
+            / "infrastructure_networks"
+            / "direct"
+            / "tropical_cyclone"
+            / "power.gpkg",
+        )
+
     def test_loads_kenya_country_and_boundary_settings(self) -> None:
         config = load_country_config("KEN", repo_root=REPO_ROOT)
 

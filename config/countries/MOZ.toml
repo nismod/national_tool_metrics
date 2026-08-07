@@ -1,0 +1,63 @@
+[country]
+iso3 = "MOZ"
+name = "Mozambique"
+# Change this value to "adm0", "adm1", or "adm2" to select the output level.
+admin_level = "adm1"
+
+[boundaries]
+id_field = "shapeID"
+name_field = "shapeName"
+
+[sources]
+worldpop_dir = "data/raw/MOZ/exposure/population/worldpop"
+capital_stock_dir = "data/raw/MOZ/exposure/capital_stock"
+facility_dir = "data/raw/MOZ/exposure/facilities"
+road_network = "data/raw/MOZ/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg"
+rail_network = "data/raw/MOZ/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg"
+power_network = "data/raw/MOZ/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg"
+rwi_dir = "data/raw/MOZ/vulnerability/relative_wealth_index"
+wealth_distribution_dir = "data/raw/MOZ/vulnerability/wealth_distribution"
+accessibility_dir = "data/raw/MOZ/vulnerability/accessibility"
+river_flood_hazard_dir = "data/raw/MOZ/hazard/river_flooding"
+tropical_cyclone_hazard_dir = "data/raw/global/tropical_cyclone"
+adaptation_potential_dir = "data/raw/MOZ/adaptation_potential"
+nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
+
+[parameters]
+worldpop_year = 2024
+max_rwi_distance_m = 5000
+max_coastal_assignment_distance_m = 5000
+max_urbanisation_nodata_distance_m = 5000
+# The source documentation describes these rasters as 9 arcseconds and uses
+# a nominal 250 m by 250 m restored cell for area and per-hectare benefits.
+nbs_nominal_cell_area_ha = 6.25
+
+[risk_runs.river_flood_jrc_baseline]
+
+[risk_runs.river_flood_jrc_baseline.inputs]
+# The workflow derives admin-level-specific filenames and layer names in these
+# directories, so adding ADM2 summaries will not require a second run bundle.
+population_risk_dir = "data/raw/MOZ/risk/socioeconomic/river_flood"
+capital_stock_risk_dir = "data/raw/MOZ/risk/socioeconomic/river_flood"
+road_damage = "data/raw/MOZ/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg"
+rail_damage = "data/raw/MOZ/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg"
+
+[risk_runs.river_flood_jrc_baseline.columns]
+road_ead = "hazard-floodMapGL_EAD"
+rail_ead = "hazard-floodMapGL_EAD"
+
+[risk_runs.tropical_cyclone_storm_baseline_2020]
+
+[risk_runs.tropical_cyclone_storm_baseline_2020.inputs]
+power_damage = "data/raw/MOZ/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg"
+
+[risk_runs.tropical_cyclone_storm_baseline_2020.columns]
+power_ead = "ead__cyclone__rcp_baseline__epoch_2020"
+
+[concentration_curves.flood_risk__jrc__baseline_protected]
+path = "data/raw/MOZ/concentration_curves/MOZ_jrc_protected_V-JRC_concentration_curve.csv"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description = "Cumulative share of baseline protection-adjusted JRC river-flood risk by cumulative population share."
