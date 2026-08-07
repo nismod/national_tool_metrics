@@ -123,6 +123,14 @@ class CountryConfigTests(unittest.TestCase):
             / "hazard"
             / "river_flooding",
         )
+        self.assertEqual(
+            config.source("tropical_cyclone_hazard_dir"),
+            REPO_ROOT
+            / "data"
+            / "raw"
+            / "global"
+            / "tropical_cyclone",
+        )
 
     def test_admin_level_alone_changes_standard_boundary_and_output_paths(
         self,

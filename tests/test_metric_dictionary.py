@@ -45,7 +45,7 @@ class MetricDictionaryTests(unittest.TestCase):
         self.assertEqual(
             counts,
             {
-                "hazard": 4,
+                "hazard": 6,
                 "exposure": 20,
                 "vulnerability": 8,
                 "risk": 11,
@@ -172,7 +172,7 @@ class MetricDictionaryTests(unittest.TestCase):
             },
         )
 
-    def test_hazard_dictionary_documents_four_return_period_patterns(
+    def test_hazard_dictionary_documents_return_period_patterns(
         self,
     ) -> None:
         hazard_metrics = {
@@ -200,15 +200,33 @@ class MetricDictionaryTests(unittest.TestCase):
                     "river_flood_jrc_baseline_"
                     "flood_depth_p90_rp<return_period>_m"
                 ),
+                (
+                    "tropical_cyclone_storm_baseline_2020_"
+                    "wind_area_<storm_category>_rp<return_period>_km2"
+                ),
+                (
+                    "tropical_cyclone_storm_baseline_2020_"
+                    "wind_area_<storm_category>_"
+                    "rp<return_period>_pct_admin"
+                ),
             },
         )
 
     def test_hazard_and_risk_metrics_encode_run_dimensions(self) -> None:
         for row in self.rows:
-            if row["module"] == "hazard":
+            if row["module"] == "hazard" and row["hazard"] == "river_flood":
                 self.assertTrue(
                     row["metric_name"].startswith(
                         "river_flood_jrc_baseline_"
+                    )
+                )
+            if (
+                row["module"] == "hazard"
+                and row["hazard"] == "tropical_cyclone"
+            ):
+                self.assertTrue(
+                    row["metric_name"].startswith(
+                        "tropical_cyclone_storm_baseline_2020_"
                     )
                 )
             if row["module"] == "risk" and row["hazard"] == "river_flood":

@@ -16,9 +16,13 @@ from .adaptation_potential import (
 )
 from .hazard import (
     RIVER_FLOOD_METRIC_NAMESPACE,
+    TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS,
+    TROPICAL_CYCLONE_METRIC_NAMESPACE,
+    TROPICAL_CYCLONE_RETURN_PERIODS,
     assemble_hazard_run_metrics,
     build_hazard_metrics,
     build_river_flood_metrics,
+    build_tropical_cyclone_metrics,
 )
 from .risk import (
     assemble_risk_run_metrics,
@@ -43,9 +47,13 @@ __all__ = [
     "build_nbs_metrics",
     "build_river_network_context_metrics",
     "RIVER_FLOOD_METRIC_NAMESPACE",
+    "TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS",
+    "TROPICAL_CYCLONE_METRIC_NAMESPACE",
+    "TROPICAL_CYCLONE_RETURN_PERIODS",
     "assemble_hazard_run_metrics",
     "build_hazard_metrics",
     "build_river_flood_metrics",
+    "build_tropical_cyclone_metrics",
     "build_capital_stock_metrics",
     "build_exposure_metrics",
     "build_facility_metrics",

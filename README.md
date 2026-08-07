@@ -12,16 +12,16 @@ distinctions are encoded in metric column names rather than additional rows.
 
 | Tool section | Current scope | Status |
 |---|---|---|
-| Hazard | JRC river-flood extent and depth for seven return periods | Implemented |
+| Hazard | JRC river-flood depth/extent and STORM tropical-cyclone wind-category area | Implemented |
 | Exposure | Population, capital stock, roads, rail, power, hospitals, and schools | Implemented |
 | Vulnerability | Relative Wealth Index, wealth distribution, and baseline accessibility | Implemented |
 | Risk | Socioeconomic river-flood risk and direct infrastructure-network risk | Implemented |
 | Adaptation Potential | FLOPROS, nature-based solutions, and river-network context | Implemented |
 | Adaptation Analysis | Outcomes and comparisons | Scope to be agreed |
 
-Tropical-cyclone Hazard metrics, indirect tropical-cyclone network risk, and
-social-infrastructure risk are not yet produced by this repository. The social-
-infrastructure risk component will be supplied by a separate workflow.
+Indirect tropical-cyclone network risk and social-infrastructure risk are not
+yet produced by this repository. The social-infrastructure risk component will
+be supplied by a separate workflow.
 
 ## Repository structure
 
@@ -42,6 +42,7 @@ national_tool_metrics/
         concentration_curves/
       global/
         nature_based_solutions/
+        tropical_cyclone/
   docs/
     concentration_curves.md
     data_layout.md
@@ -142,6 +143,7 @@ column name. Examples include:
 
 ```text
 river_flood_jrc_baseline_flooded_area_rp100_km2
+tropical_cyclone_storm_baseline_2020_wind_area_cat3plus_rp100_pct_admin
 tropical_cyclone_storm_baseline_2020_power_ead_total
 ```
 

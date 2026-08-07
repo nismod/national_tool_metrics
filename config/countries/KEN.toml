@@ -19,6 +19,7 @@ rwi_dir = "data/raw/KEN/vulnerability/relative_wealth_index"
 wealth_distribution_dir = "data/raw/KEN/vulnerability/wealth_distribution"
 accessibility_dir = "data/raw/KEN/vulnerability/accessibility"
 river_flood_hazard_dir = "data/raw/KEN/hazard/river_flooding"
+tropical_cyclone_hazard_dir = "data/raw/global/tropical_cyclone"
 adaptation_potential_dir = "data/raw/KEN/adaptation_potential"
 nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
 

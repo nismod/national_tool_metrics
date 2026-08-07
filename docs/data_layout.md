@@ -48,6 +48,7 @@ data/
 
     global/
       nature_based_solutions/
+      tropical_cyclone/
 ```
 
 Adaptation Analysis inputs will be added after that section's scope is agreed.
@@ -98,7 +99,27 @@ workflow calculates flooded area, percentage of administrative area,
 area-weighted mean depth, and area-weighted 90th-percentile depth for each
 return period. Flood extent must not decrease as return period increases.
 
-Tropical-cyclone Hazard inputs are reserved for a future workflow.
+### STORM tropical-cyclone wind
+
+```text
+data/raw/global/tropical_cyclone/
+  STORM_FIXED_RETURN_PERIODS_constant_10_YR_RP.tif
+  STORM_FIXED_RETURN_PERIODS_constant_20_YR_RP.tif
+  STORM_FIXED_RETURN_PERIODS_constant_50_YR_RP.tif
+  STORM_FIXED_RETURN_PERIODS_constant_100_YR_RP.tif
+  STORM_FIXED_RETURN_PERIODS_constant_200_YR_RP.tif
+  STORM_FIXED_RETURN_PERIODS_constant_500_YR_RP.tif
+  STORM_FIXED_RETURN_PERIODS_constant_1000_YR_RP.tif
+```
+
+The rasters must share a CRS, transform, shape, and extent. Values represent
+10-metre, 10-minute sustained maximum wind speed in metres per second. For each
+return period, the workflow calculates area and administrative-area share at
+or above the tropical-storm threshold and converted Saffir-Simpson Category
+1–5 thresholds: 18.0, 29.0, 37.6, 43.4, 51.1, and 61.6 m/s. Zero is no-data.
+Areas must not increase with category severity or decrease with return period.
+Raster cells crossing administrative boundaries are weighted by their exact
+intersection area so coarse coastal cells are not assigned wholly to one region.
 
 ## Exposure inputs
 
