@@ -19,6 +19,8 @@ IDENTIFIER_COLUMNS = [
     "section",
 ]
 
+CARD_IDENTIFIER_COLUMNS = [*IDENTIFIER_COLUMNS, "card"]
+
 OUTPUT_UNIQUE_KEY = [
     "country_iso3",
     "admin_level",
@@ -49,6 +51,18 @@ def build_identifier_frame(
     identifiers.insert(0, "country_iso3", config.country.iso3)
     identifiers["section"] = section
     return identifiers[IDENTIFIER_COLUMNS]
+
+
+def build_card_identifier_frame(
+    admin_regions: gpd.GeoDataFrame,
+    config: PipelineConfig,
+    section: str,
+    card: str,
+) -> pd.DataFrame:
+    """Create the standard identifiers repeated in one card CSV."""
+    identifiers = build_identifier_frame(admin_regions, config, section)
+    identifiers["card"] = card
+    return identifiers[CARD_IDENTIFIER_COLUMNS]
 
 
 def namespace_metric_table(
@@ -159,6 +173,96 @@ def validate_section_output(
         )
 
 
+def validate_card_output(
+    frame: pd.DataFrame,
+    expected_section: str,
+    expected_card: str,
+    dimension_columns: list[str] | tuple[str, ...],
+    identifier_columns: list[str] | tuple[str, ...] = CARD_IDENTIFIER_COLUMNS,
+    optional_dimension_columns: list[str] | tuple[str, ...] = (),
+) -> None:
+    """Validate a tidy, one-card CSV and its parameter dimensions."""
+    dimensions = list(dimension_columns)
+    identifiers = list(identifier_columns)
+    optional_dimensions = list(optional_dimension_columns)
+    if "adm_id" not in identifiers or "adm_name" not in identifiers:
+        raise ValueError(
+            "Card identifiers must include adm_id and adm_name"
+        )
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError("Card output contains duplicate identifier columns")
+    if not dimensions:
+        raise ValueError("Card output must define at least one dimension column")
+    if len(dimensions) != len(set(dimensions)):
+        raise ValueError("Card output contains duplicate dimension columns")
+    unknown_optional_dimensions = sorted(
+        set(optional_dimensions).difference(dimensions)
+    )
+    if unknown_optional_dimensions:
+        raise ValueError(
+            "Optional card dimensions are not declared dimensions: "
+            f"{unknown_optional_dimensions}"
+        )
+    reserved_dimensions = set(dimensions).intersection(
+        {*identifiers, "value"}
+    )
+    if reserved_dimensions:
+        raise ValueError(
+            "Card dimensions overlap reserved output columns: "
+            f"{sorted(reserved_dimensions)}"
+        )
+
+    expected_columns = [*identifiers, *dimensions, "value"]
+    if list(frame.columns) != expected_columns:
+        raise ValueError(
+            "Card output columns do not match the declared schema. "
+            f"Expected {expected_columns}, found {list(frame.columns)}"
+        )
+    if frame.empty:
+        raise ValueError("Card output contains no rows")
+    if isinstance(frame, gpd.GeoDataFrame) or "geometry" in frame.columns:
+        raise ValueError("Card CSV output must not contain geometry")
+    if frame[identifiers].isna().any().any():
+        raise ValueError("Card output contains missing identifier values")
+    required_dimensions = [
+        column
+        for column in dimensions
+        if column not in optional_dimensions
+    ]
+    if frame[required_dimensions].isna().any().any():
+        raise ValueError("Card output contains missing parameter values")
+    if "section" in frame and set(frame["section"].unique()) != {
+        expected_section
+    }:
+        raise ValueError(
+            f"Expected section {expected_section!r}, found "
+            f"{sorted(frame['section'].unique())}"
+        )
+    if "card" in frame and set(frame["card"].unique()) != {expected_card}:
+        raise ValueError(
+            f"Expected card {expected_card!r}, found "
+            f"{sorted(frame['card'].unique())}"
+        )
+    if not pd.api.types.is_numeric_dtype(frame["value"]):
+        raise ValueError("Card output value column must be numeric")
+    if frame["value"].isna().all():
+        raise ValueError("Card output value column is entirely empty")
+
+    unique_key = [
+        column
+        for column in (
+            "country_iso3",
+            "admin_level",
+            "adm_id",
+            "section",
+            "card",
+        )
+        if column in identifiers
+    ]
+    unique_key.extend(dimensions)
+    validate_unique(frame, unique_key, "Card output")
+
+
 def write_section_output(
     frame: pd.DataFrame,
     config: PipelineConfig,
@@ -167,6 +271,30 @@ def write_section_output(
     """Validate and write the canonical CSV for one tool section."""
     validate_section_output(frame, section)
     output_path = config.output_path(section)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(output_path, index=False)
+    return output_path
+
+
+def write_card_output(
+    frame: pd.DataFrame,
+    config: PipelineConfig,
+    section: str,
+    card: str,
+    dimension_columns: list[str] | tuple[str, ...],
+    identifier_columns: list[str] | tuple[str, ...] = CARD_IDENTIFIER_COLUMNS,
+    optional_dimension_columns: list[str] | tuple[str, ...] = (),
+) -> Path:
+    """Validate and write the canonical downloadable CSV for one tool card."""
+    validate_card_output(
+        frame,
+        section,
+        card,
+        dimension_columns,
+        identifier_columns,
+        optional_dimension_columns,
+    )
+    output_path = config.card_output_path(section, card)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(output_path, index=False)
     return output_path

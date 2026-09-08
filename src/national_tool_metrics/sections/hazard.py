@@ -19,9 +19,12 @@ from shapely.geometry import box, mapping
 from ..boundaries import load_admin_boundaries
 from ..config import PipelineConfig
 from ..outputs import (
+    CARD_IDENTIFIER_COLUMNS,
+    build_card_identifier_frame,
     build_identifier_frame,
     merge_metric_tables,
     namespace_metric_table,
+    validate_card_output,
     validate_section_output,
 )
 from ..raster import raster_window_cell_areas_km2
@@ -38,6 +41,33 @@ TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS = {
     "cat3plus": 43.4,
     "cat4plus": 51.1,
     "cat5plus": 61.6,
+}
+
+RIVER_FLOOD_CARD = "river_flooding"
+TROPICAL_CYCLONE_CARD = "tropical_cyclone_wind"
+RIVER_FLOOD_CARD_DIMENSIONS = (
+    "hazard",
+    "model",
+    "scenario",
+    "return_period_years",
+    "metric",
+    "unit",
+)
+TROPICAL_CYCLONE_CARD_DIMENSIONS = (
+    "hazard",
+    "model",
+    "scenario",
+    "epoch",
+    "return_period_years",
+    "wind_threshold",
+    "wind_threshold_ms",
+    "display_mode",
+    "metric",
+    "unit",
+)
+HAZARD_CARD_DIMENSIONS = {
+    RIVER_FLOOD_CARD: RIVER_FLOOD_CARD_DIMENSIONS,
+    TROPICAL_CYCLONE_CARD: TROPICAL_CYCLONE_CARD_DIMENSIONS,
 }
 
 
@@ -478,6 +508,187 @@ def build_tropical_cyclone_metrics(
 
     _validate_tropical_cyclone_metrics(metrics)
     return metrics
+
+
+def _format_river_flood_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    metric_specs = (
+        ("flooded_area", "km2", "flooded_area_rp{return_period}_km2"),
+        (
+            "area_flooded_percentage",
+            "percent",
+            "flooded_area_rp{return_period}_pct_admin",
+        ),
+        (
+            "mean_flood_depth",
+            "m",
+            "flood_depth_mean_rp{return_period}_m",
+        ),
+        (
+            "p90_flood_depth",
+            "m",
+            "flood_depth_p90_rp{return_period}_m",
+        ),
+    )
+    parts: list[pd.DataFrame] = []
+    for return_period in RIVER_FLOOD_RETURN_PERIODS:
+        for metric_order, (metric, unit, template) in enumerate(metric_specs):
+            source_column = template.format(return_period=return_period)
+            part = metrics[["adm_id", source_column]].rename(
+                columns={source_column: "value"}
+            )
+            part["hazard"] = "river_flood"
+            part["model"] = "jrc"
+            part["scenario"] = "baseline"
+            part["return_period_years"] = return_period
+            part["metric"] = metric
+            part["unit"] = unit
+            part["_metric_order"] = metric_order
+            parts.append(part)
+
+    long_metrics = pd.concat(parts, ignore_index=True)
+    long_metrics["value"] = long_metrics["value"].round(3)
+    identifiers = build_card_identifier_frame(
+        admin_regions,
+        config,
+        section="hazard",
+        card=RIVER_FLOOD_CARD,
+    )
+    admin_order = {
+        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
+    }
+    output = identifiers.merge(
+        long_metrics,
+        on="adm_id",
+        how="left",
+        validate="one_to_many",
+    )
+    output["_admin_order"] = output["adm_id"].map(admin_order)
+    output = output.sort_values(
+        ["_admin_order", "return_period_years", "_metric_order"],
+        kind="stable",
+    ).drop(columns=["_admin_order", "_metric_order"])
+    output = output[
+        [*CARD_IDENTIFIER_COLUMNS, *RIVER_FLOOD_CARD_DIMENSIONS, "value"]
+    ].reset_index(drop=True)
+    validate_card_output(
+        output,
+        "hazard",
+        RIVER_FLOOD_CARD,
+        RIVER_FLOOD_CARD_DIMENSIONS,
+    )
+    return output
+
+
+def _format_tropical_cyclone_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    display_specs = (
+        ("area", "km2", "km2"),
+        ("percentage", "percent", "pct_admin"),
+    )
+    parts: list[pd.DataFrame] = []
+    for return_period in TROPICAL_CYCLONE_RETURN_PERIODS:
+        for threshold_order, (threshold, threshold_ms) in enumerate(
+            TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS.items()
+        ):
+            for display_order, (display_mode, unit, suffix) in enumerate(
+                display_specs
+            ):
+                source_column = (
+                    f"wind_area_{threshold}_rp{return_period}_{suffix}"
+                )
+                part = metrics[["adm_id", source_column]].rename(
+                    columns={source_column: "value"}
+                )
+                part["hazard"] = "tropical_cyclone"
+                part["model"] = "storm"
+                part["scenario"] = "baseline"
+                part["epoch"] = 2020
+                part["return_period_years"] = return_period
+                part["wind_threshold"] = threshold
+                part["wind_threshold_ms"] = threshold_ms
+                part["display_mode"] = display_mode
+                part["metric"] = "wind_area"
+                part["unit"] = unit
+                part["_threshold_order"] = threshold_order
+                part["_display_order"] = display_order
+                parts.append(part)
+
+    long_metrics = pd.concat(parts, ignore_index=True)
+    long_metrics["value"] = long_metrics["value"].round(3)
+    identifiers = build_card_identifier_frame(
+        admin_regions,
+        config,
+        section="hazard",
+        card=TROPICAL_CYCLONE_CARD,
+    )
+    admin_order = {
+        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
+    }
+    output = identifiers.merge(
+        long_metrics,
+        on="adm_id",
+        how="left",
+        validate="one_to_many",
+    )
+    output["_admin_order"] = output["adm_id"].map(admin_order)
+    output = output.sort_values(
+        [
+            "_admin_order",
+            "return_period_years",
+            "_threshold_order",
+            "_display_order",
+        ],
+        kind="stable",
+    ).drop(
+        columns=["_admin_order", "_threshold_order", "_display_order"]
+    )
+    output = output[
+        [
+            *CARD_IDENTIFIER_COLUMNS,
+            *TROPICAL_CYCLONE_CARD_DIMENSIONS,
+            "value",
+        ]
+    ].reset_index(drop=True)
+    validate_card_output(
+        output,
+        "hazard",
+        TROPICAL_CYCLONE_CARD,
+        TROPICAL_CYCLONE_CARD_DIMENSIONS,
+    )
+    return output
+
+
+def build_hazard_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Build the two tidy downloadable Hazard card tables."""
+    if admin_regions is None:
+        admin_regions = load_admin_boundaries(config)
+    river_flood_metrics = build_river_flood_metrics(config, admin_regions)
+    tropical_cyclone_metrics = build_tropical_cyclone_metrics(
+        config,
+        admin_regions,
+    )
+    return {
+        RIVER_FLOOD_CARD: _format_river_flood_card_metrics(
+            config,
+            admin_regions,
+            river_flood_metrics,
+        ),
+        TROPICAL_CYCLONE_CARD: _format_tropical_cyclone_card_metrics(
+            config,
+            admin_regions,
+            tropical_cyclone_metrics,
+        ),
+    }
 
 
 def assemble_hazard_run_metrics(

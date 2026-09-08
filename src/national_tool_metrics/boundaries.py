@@ -13,25 +13,33 @@ def load_admin_boundaries(config: PipelineConfig) -> gpd.GeoDataFrame:
         raise FileNotFoundError(f"Boundary layer not found: {boundary_path}")
 
     boundaries = gpd.read_file(boundary_path)
-    required_columns = {
-        config.boundaries.id_field,
-        config.boundaries.name_field,
-        "geometry",
-    }
+    required_columns = {config.boundaries.name_field, "geometry"}
     validate_columns(boundaries, required_columns, "Boundary layer")
 
-    admin_regions = boundaries[
-        [
-            config.boundaries.id_field,
-            config.boundaries.name_field,
-            "geometry",
-        ]
-    ].copy()
+    if config.boundaries.id_field in boundaries.columns:
+        admin_regions = boundaries[
+            [
+                config.boundaries.id_field,
+                config.boundaries.name_field,
+                "geometry",
+            ]
+        ].copy()
+        admin_regions = admin_regions.rename(
+            columns={config.boundaries.id_field: "adm_id"}
+        )
+    elif config.country.admin_level == "adm0" and len(boundaries) == 1:
+        admin_regions = boundaries[
+            [config.boundaries.name_field, "geometry"]
+        ].copy()
+        admin_regions.insert(0, "adm_id", config.country.iso3)
+    else:
+        validate_columns(
+            boundaries,
+            {config.boundaries.id_field},
+            "Boundary layer",
+        )
     admin_regions = admin_regions.rename(
-        columns={
-            config.boundaries.id_field: "adm_id",
-            config.boundaries.name_field: "adm_name",
-        }
+        columns={config.boundaries.name_field: "adm_name"}
     )
     admin_regions["adm_id"] = admin_regions["adm_id"].astype("string")
     admin_regions["adm_name"] = admin_regions["adm_name"].astype("string")

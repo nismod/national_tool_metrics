@@ -10,10 +10,16 @@ from rasterio.transform import from_origin
 from shapely.geometry import box
 
 from national_tool_metrics.config import load_country_config
+from national_tool_metrics.outputs import CARD_IDENTIFIER_COLUMNS
 from national_tool_metrics.sections.hazard import (
+    RIVER_FLOOD_CARD,
+    RIVER_FLOOD_CARD_DIMENSIONS,
     RIVER_FLOOD_RETURN_PERIODS,
+    TROPICAL_CYCLONE_CARD,
+    TROPICAL_CYCLONE_CARD_DIMENSIONS,
     TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS,
     TROPICAL_CYCLONE_RETURN_PERIODS,
+    build_hazard_card_metrics,
     build_hazard_metrics,
     build_tropical_cyclone_metrics,
 )
@@ -266,6 +272,76 @@ class HazardMetricTests(unittest.TestCase):
                 4.0,
                 places=3,
             )
+
+    def test_builds_one_tidy_csv_table_per_hazard_card(self) -> None:
+        self._write_return_period_rasters()
+        self._write_tropical_cyclone_rasters()
+
+        cards = build_hazard_card_metrics(self.config, self.admin_regions)
+
+        self.assertEqual(
+            set(cards),
+            {RIVER_FLOOD_CARD, TROPICAL_CYCLONE_CARD},
+        )
+        river = cards[RIVER_FLOOD_CARD]
+        cyclone = cards[TROPICAL_CYCLONE_CARD]
+        self.assertEqual(
+            list(river.columns),
+            [
+                *CARD_IDENTIFIER_COLUMNS,
+                *RIVER_FLOOD_CARD_DIMENSIONS,
+                "value",
+            ],
+        )
+        self.assertEqual(
+            list(cyclone.columns),
+            [
+                *CARD_IDENTIFIER_COLUMNS,
+                *TROPICAL_CYCLONE_CARD_DIMENSIONS,
+                "value",
+            ],
+        )
+        self.assertEqual(
+            len(river),
+            len(self.admin_regions) * len(RIVER_FLOOD_RETURN_PERIODS) * 4,
+        )
+        self.assertEqual(
+            len(cyclone),
+            len(self.admin_regions)
+            * len(TROPICAL_CYCLONE_RETURN_PERIODS)
+            * len(TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS)
+            * 2,
+        )
+        self.assertEqual(
+            set(river["metric"]),
+            {
+                "flooded_area",
+                "area_flooded_percentage",
+                "mean_flood_depth",
+                "p90_flood_depth",
+            },
+        )
+        self.assertEqual(
+            set(cyclone["return_period_years"]),
+            set(TROPICAL_CYCLONE_RETURN_PERIODS),
+        )
+        self.assertNotIn(75, set(cyclone["return_period_years"]))
+
+        river_value = river.loc[
+            (river["adm_id"] == "KEN-1")
+            & (river["return_period_years"] == 10)
+            & (river["metric"] == "mean_flood_depth"),
+            "value",
+        ].item()
+        cyclone_value = cyclone.loc[
+            (cyclone["adm_id"] == "KEN-1")
+            & (cyclone["return_period_years"] == 10)
+            & (cyclone["wind_threshold"] == "cat1plus")
+            & (cyclone["display_mode"] == "area"),
+            "value",
+        ].item()
+        self.assertAlmostEqual(river_value, 1.25, places=3)
+        self.assertAlmostEqual(cyclone_value, 3.0, places=3)
 
 
 if __name__ == "__main__":

@@ -285,23 +285,128 @@ nominal restored-cell area of 6.25 hectares. Cost and carbon values are scaled
 by that area; biodiversity is averaged over valid opportunity cells. Mangrove
 cells outside a polygon may be assigned to the nearest region within 5 km.
 
+## Adaptation Outcomes inputs
+
+Dry proofing uses five administrative summaries at the configured level:
+
+```text
+data/raw/<ISO3>/adaptation_outcomes/
+  <ISO3>_adaptation-cost_dp_m-jrc_<ADMIN-LEVEL>.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_AALs_adapted_dp_capstock.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_protected_AAR_baseline_capstock.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_adapted_AAR_V-EXP_S-rwi_dp.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_protected_AAR_V-EXP_S-rwi.gpkg
+```
+
+Relocation uses the same baseline summaries and three threshold-specific inputs
+for each `<DUC>` code in `11`, `12`, `13`, `21`, `22`, `23`, and `30`:
+
+```text
+data/raw/<ISO3>/adaptation_outcomes/
+  <ISO3>_adaptation-cost_rl_m-jrc_duc<DUC>_<ADMIN-LEVEL>.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_AALs_adapted_rl_duc<DUC>_capstock.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_adapted_AAR_V-EXP_S-rwi_rl_duc<DUC>.gpkg
+```
+
+Flood protection uses three inputs for every combination of `<DUC>` and design
+return period `<RP>` in `10`, `20`, `50`, `100`, and `200`:
+
+```text
+data/raw/<ISO3>/adaptation_outcomes/
+  <ISO3>_adaptation-cost_fp_rp<RP>_duc<DUC>_<ADMIN-LEVEL>.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_AALs_adapted_fp_rp<RP>_duc<DUC>_capstock.gpkg
+  <ISO3>_<ADMIN-LEVEL>_metrics_jrc-flood_adapted_AAR_V-EXP_S-rwi_fp_rp<RP>_duc<DUC>.gpkg
+```
+
+The cost source supplies `area_dry-proofed` in square metres. Economic sources
+supply residential, non-residential, infrastructure, and total average annual
+capital-stock loss.
+Social sources supply total and quintile average annual flood exposure plus
+the concentration index. Avoided values are baseline minus adapted; negative
+values are retained. Population and coverage fields are checked as contextual
+quality indicators but are not published in the card CSV. The relocation cost
+source supplies `capstock_relocated` in USD.
+Flood-protection costs use `adaptation_cost`, `min_adaptation_cost`, and
+`max_adaptation_cost` in millions of USD. `adj_adaptation_cost` is ignored.
+Jointly missing cost estimates remain missing; partial cost ranges and ranges
+that do not satisfy lower <= estimate <= upper are rejected.
+
+ADM1 and ADM2 summaries must contain `shapeID`. The one-row ADM0 boundary and
+summaries may omit it; the workflow assigns the country ISO3 code as the stable
+ADM0 `adm_id` after verifying that both the boundary and each summary contain
+exactly one country row. The standard output identifiers are therefore retained
+at every administrative level.
+
 ## Results
 
-Each implemented notebook writes one canonical CSV:
+Download outputs are migrating from section-wide CSVs to one tidy CSV per
+sidebar card. Hazard writes:
+
+```text
+results/<ISO3>/hazard/<ISO3>_<admin-level>_hazard_river_flooding_metrics.csv
+results/<ISO3>/hazard/<ISO3>_<admin-level>_hazard_tropical_cyclone_wind_metrics.csv
+```
+
+Every card CSV begins with seven standard identifiers:
+
+```text
+country_iso3, country_name, admin_level, adm_id, adm_name, section, card
+```
+
+Card-specific adjustable parameters follow the identifiers, and the plotted
+number is stored in `value`. See
+[`card_csv_contracts.md`](card_csv_contracts.md) for the exact schemas, row
+grains, and permitted values.
+
+Exposure writes seven card CSVs under `results/<ISO3>/exposure/`.
+Vulnerability currently writes the two approved card outputs below;
+Accessibility is supplied through a separate workflow.
+
+```text
+results/<ISO3>/vulnerability/<ISO3>_<admin-level>_vulnerability_relative_wealth_index_metrics.csv
+results/<ISO3>/vulnerability/<ISO3>_<admin-level>_vulnerability_wealth_distribution_metrics.csv
+```
+
+Risk writes the three supported card outputs below. Each file includes a
+`risk_subsection` column for the sidebar hierarchy. Population and Capital
+Stock are river-flood-only; Direct Damage represents its supported hazards as
+rows rather than separate files.
+
+```text
+results/<ISO3>/risk/<ISO3>_<admin-level>_risk_population_metrics.csv
+results/<ISO3>/risk/<ISO3>_<admin-level>_risk_capital_stock_metrics.csv
+results/<ISO3>/risk/<ISO3>_<admin-level>_risk_direct_damage_metrics.csv
+```
+
+Adaptation Potential writes five card outputs. Each file includes
+`adaptation_subsection`; nature-based solution parameters are tidy columns
+rather than parts of metric names.
+
+```text
+results/<ISO3>/adaptation_potential/<ISO3>_<admin-level>_adaptation_potential_slope_vegetation_metrics.csv
+results/<ISO3>/adaptation_potential/<ISO3>_<admin-level>_adaptation_potential_mangroves_metrics.csv
+results/<ISO3>/adaptation_potential/<ISO3>_<admin-level>_adaptation_potential_river_catchment_restoration_metrics.csv
+results/<ISO3>/adaptation_potential/<ISO3>_<admin-level>_adaptation_potential_existing_flood_protection_metrics.csv
+results/<ISO3>/adaptation_potential/<ISO3>_<admin-level>_adaptation_potential_river_network_context_metrics.csv
+```
+
+Adaptation Outcomes writes Dry Proofing, Relocation, and Flood Protection cards:
+
+```text
+results/<ISO3>/adaptation_outcomes/<ISO3>_<admin-level>_adaptation_outcomes_dry_proofing_metrics.csv
+results/<ISO3>/adaptation_outcomes/<ISO3>_<admin-level>_adaptation_outcomes_relocation_metrics.csv
+results/<ISO3>/adaptation_outcomes/<ISO3>_<admin-level>_adaptation_outcomes_flood_protection_metrics.csv
+```
+
+Sections not yet migrated continue to write:
 
 ```text
 results/<ISO3>/<section>/<ISO3>_<admin-level>_<section>_metrics.csv
 ```
 
-The six identifier columns are:
-
-```text
-country_iso3, country_name, admin_level, adm_id, adm_name, section
-```
-
-All other columns are metrics. Hazard, model, scenario, epoch, and return-
-period distinctions are encoded in metric names. Each combination of country,
-administrative level, administrative identifier, and section must be unique.
+These legacy-wide files have one row per administrative region and encode run
+dimensions in metric column names. The shared section writer remains in place
+until all applicable sections have approved card contracts.
 
 Concentration curves use a separate country-level output because their rows are
 cumulative population shares rather than administrative regions:

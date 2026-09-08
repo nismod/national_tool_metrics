@@ -21,10 +21,11 @@ accessibility_dir = "data/raw/KEN/vulnerability/accessibility"
 river_flood_hazard_dir = "data/raw/KEN/hazard/river_flooding"
 tropical_cyclone_hazard_dir = "data/raw/global/tropical_cyclone"
 adaptation_potential_dir = "data/raw/KEN/adaptation_potential"
+adaptation_outcomes_dir = "data/raw/KEN/adaptation_outcomes"
 nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
 
 [parameters]
-worldpop_year = 2025
+worldpop_year = 2024
 max_rwi_distance_m = 5000
 max_coastal_assignment_distance_m = 5000
 max_urbanisation_nodata_distance_m = 5000
@@ -55,9 +56,39 @@ power_damage = "data/raw/KEN/risk/infrastructure_networks/direct/tropical_cyclon
 power_ead = "ead__cyclone__rcp_baseline__epoch_2020"
 
 [concentration_curves.flood_risk__jrc__baseline_protected]
-path = "data/raw/KEN/concentration_curves/KEN_jrc_protected_V-JRC_concentration_curve.csv"
+path = "data/raw/KEN/concentration_curves/KEN_jrc_protected_V-EXP_concentration_curve.csv"
 x_column = "frac_pop"
 y_column = "frac_flood"
 ranked_by = "relative_wealth"
 rank_direction = "lowest_to_highest"
 description = "Cumulative share of baseline protection-adjusted JRC river-flood risk by cumulative population share."
+
+[concentration_curves.flood_risk__jrc__dry_proofing]
+path = "data/raw/KEN/concentration_curves/KEN_jrc_adapted_dp_V-EXP_concentration_curve.csv"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description = "Cumulative share of dry-proofing-adapted JRC river-flood risk by cumulative population share."
+
+[[concentration_curve_sets]]
+glob = "data/raw/KEN/concentration_curves/KEN_jrc_adapted_rl_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^KEN_jrc_adapted_rl_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__relocation_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of relocation-adapted JRC river-flood risk for scenario {duc} by cumulative population share."
+expected_count = 7
+
+[[concentration_curve_sets]]
+glob = "data/raw/KEN/concentration_curves/KEN_jrc_adapted_fp_rp*_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^KEN_jrc_adapted_fp_(?P<rp>rp\d+)_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__flood_protection_{rp}_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of flood-protection-adapted JRC river-flood risk for scenarios {rp} and {duc} by cumulative population share."
+expected_count = 35

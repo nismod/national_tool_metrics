@@ -8,12 +8,18 @@ import pandas as pd
 from shapely.geometry import Point
 
 from national_tool_metrics.config import load_country_config
+from national_tool_metrics.outputs import CARD_IDENTIFIER_COLUMNS
 from national_tool_metrics.sections.risk import (
+    CAPITAL_STOCK_CARD,
     CAPITAL_STOCK_COMPONENT_TOKENS,
     CAPITAL_STOCK_RISK_MAP_PREFIXES,
+    DIRECT_DAMAGE_CARD,
+    POPULATION_CARD,
     POPULATION_GROUP_TOKENS,
     POPULATION_RISK_MAP_PREFIXES,
+    RISK_CARD_DIMENSIONS,
     RETURN_PERIOD_RISK_MAPS,
+    assemble_risk_card_metrics,
     assemble_risk_run_metrics,
     build_capital_stock_risk_metrics,
     build_direct_network_risk_metrics,
@@ -429,6 +435,175 @@ class RiskMetricTests(unittest.TestCase):
             ].tolist(),
             [0.0, 0.0],
         )
+
+    def test_builds_three_tidy_risk_card_tables(self) -> None:
+        population_columns = {"adm_id": ["KEN-1", "KEN-2"]}
+        for risk_order, prefix in enumerate(
+            POPULATION_RISK_MAP_PREFIXES.values(),
+            start=1,
+        ):
+            for token in POPULATION_GROUP_TOKENS.values():
+                population_columns[f"{prefix}_{token}"] = [
+                    risk_order * 10.0,
+                    risk_order * 20.0,
+                ]
+        population = pd.DataFrame(population_columns)
+
+        capital = self.admin_regions[["adm_id"]].copy()
+        for risk_order, prefix in enumerate(
+            CAPITAL_STOCK_RISK_MAP_PREFIXES.values(),
+            start=1,
+        ):
+            for sector in (
+                "total",
+                "residential",
+                "non_residential",
+                "infrastructure",
+            ):
+                capital[f"{prefix}_{sector}"] = [
+                    risk_order * 100.0,
+                    risk_order * 200.0,
+                ]
+
+        river_direct = pd.DataFrame(
+            {
+                "adm_id": ["KEN-1", "KEN-2"],
+                "road_ead_total": [100.0, 200.0],
+                "road_ead_trunk": [10.0, 20.0],
+                "road_ead_primary": [20.0, 40.0],
+                "road_ead_secondary": [30.0, 60.0],
+                "road_ead_tertiary": [40.0, 80.0],
+                "rail_ead_total": [5.0, 10.0],
+            }
+        )
+        cyclone_direct = pd.DataFrame(
+            {
+                "adm_id": ["KEN-1", "KEN-2"],
+                "power_ead_total": [7.0, 14.0],
+            }
+        )
+
+        cards = assemble_risk_card_metrics(
+            self.config,
+            self.admin_regions,
+            population,
+            capital,
+            river_direct,
+            cyclone_direct,
+        )
+
+        self.assertEqual(
+            set(cards),
+            {POPULATION_CARD, CAPITAL_STOCK_CARD, DIRECT_DAMAGE_CARD},
+        )
+        for card, output in cards.items():
+            self.assertEqual(
+                list(output.columns),
+                [
+                    *CARD_IDENTIFIER_COLUMNS,
+                    *RISK_CARD_DIMENSIONS[card],
+                    "value",
+                ],
+            )
+            self.assertEqual(set(output["section"]), {"risk"})
+            self.assertEqual(set(output["card"]), {card})
+
+        population_card = cards[POPULATION_CARD]
+        self.assertEqual(len(population_card), 2 * 14 * 8)
+        bottom_40 = population_card.loc[
+            (population_card["adm_id"] == "KEN-1")
+            & (population_card["population_group"] == "bottom_40")
+            & (
+                population_card["risk_metric"]
+                == "average_annual_exposure_protected"
+            ),
+            "value",
+        ].item()
+        self.assertEqual(bottom_40, 20.0)
+        self.assertEqual(
+            set(population_card["population_group"]),
+            {
+                "total",
+                "female",
+                "male",
+                "infant",
+                "schoolage",
+                "working",
+                "childbearing",
+                "elderly",
+                "q1",
+                "q2",
+                "q3",
+                "q4",
+                "q5",
+                "bottom_40",
+            },
+        )
+        self.assertEqual(
+            set(
+                population_card.loc[
+                    population_card["risk_metric"]
+                    == "average_annual_exposure_protected",
+                    "unit",
+                ]
+            ),
+            {"people_per_year"},
+        )
+        self.assertEqual(
+            set(population_card["risk_subsection"]),
+            {"socioeconomic"},
+        )
+        self.assertEqual(set(population_card["hazard"]), {"river_flood"})
+        self.assertNotIn("metric", population_card.columns)
+        self.assertNotIn("epoch", population_card.columns)
+
+        capital_card = cards[CAPITAL_STOCK_CARD]
+        self.assertEqual(len(capital_card), 2 * 4 * 8)
+        self.assertEqual(
+            set(
+                capital_card.loc[
+                    capital_card["risk_metric"].str.startswith("rp"),
+                    "unit",
+                ]
+            ),
+            {"usd"},
+        )
+        self.assertEqual(
+            set(capital_card["risk_subsection"]),
+            {"socioeconomic"},
+        )
+        self.assertEqual(
+            set(capital_card["risk_metric"]),
+            {
+                "average_annual_loss_protected",
+                "rp10",
+                "rp20",
+                "rp50",
+                "rp75",
+                "rp100",
+                "rp200",
+                "rp500",
+            },
+        )
+
+        direct_card = cards[DIRECT_DAMAGE_CARD]
+        self.assertEqual(len(direct_card), 2 * 8)
+        self.assertEqual(
+            set(direct_card["risk_subsection"]),
+            {"infrastructure_networks"},
+        )
+        missing_motorway = direct_card.loc[
+            (direct_card["infrastructure_type"] == "road")
+            & (direct_card["asset_class"] == "motorway"),
+            "value",
+        ]
+        self.assertEqual(missing_motorway.tolist(), [0.0, 0.0])
+        cyclone = direct_card.loc[
+            direct_card["hazard"] == "tropical_cyclone"
+        ]
+        self.assertEqual(set(cyclone["model"]), {"storm"})
+        self.assertEqual(set(cyclone["epoch"]), {2020})
+        self.assertEqual(set(cyclone["infrastructure_type"]), {"power"})
 
 
 if __name__ == "__main__":

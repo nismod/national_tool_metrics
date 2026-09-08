@@ -8,11 +8,20 @@ from .exposure import (
     build_population_metrics,
 )
 from .adaptation_potential import (
+    assemble_adaptation_potential_card_metrics,
     assemble_adaptation_potential_metrics,
+    build_adaptation_potential_card_metrics,
     build_adaptation_potential_metrics,
     build_flopros_metrics,
     build_nbs_metrics,
     build_river_network_context_metrics,
+)
+from .adaptation_outcomes import (
+    assemble_adaptation_outcomes_card_metrics,
+    build_adaptation_outcomes_card_metrics,
+    build_dry_proofing_metrics,
+    build_flood_protection_metrics,
+    build_relocation_metrics,
 )
 from .hazard import (
     RIVER_FLOOD_METRIC_NAMESPACE,
@@ -41,7 +50,11 @@ from .vulnerability import (
 )
 
 __all__ = [
+    "assemble_adaptation_outcomes_card_metrics",
+    "assemble_adaptation_potential_card_metrics",
     "assemble_adaptation_potential_metrics",
+    "build_adaptation_outcomes_card_metrics",
+    "build_adaptation_potential_card_metrics",
     "build_adaptation_potential_metrics",
     "build_flopros_metrics",
     "build_nbs_metrics",
@@ -65,6 +78,9 @@ __all__ = [
     "build_population_risk_metrics",
     "build_risk_metrics",
     "build_risk_run_metrics",
+    "build_dry_proofing_metrics",
+    "build_flood_protection_metrics",
+    "build_relocation_metrics",
     "combine_risk_run_outputs",
     "build_accessibility_metrics",
     "build_relative_wealth_index_metrics",

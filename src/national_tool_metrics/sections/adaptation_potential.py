@@ -22,8 +22,11 @@ from shapely.geometry.base import BaseGeometry
 from ..boundaries import load_admin_boundaries
 from ..config import PipelineConfig
 from ..outputs import (
+    CARD_IDENTIFIER_COLUMNS,
+    build_card_identifier_frame,
     build_identifier_frame,
     merge_metric_tables,
+    validate_card_output,
     validate_section_output,
 )
 
@@ -53,6 +56,78 @@ URBANISATION_GROUPS = {
     "rural": {10, 11, 12, 13},
     "town": {21, 22, 23},
     "city": {30},
+}
+
+SLOPE_VEGETATION_CARD = "slope_vegetation"
+MANGROVES_CARD = "mangroves"
+RIVER_CATCHMENT_RESTORATION_CARD = "river_catchment_restoration"
+EXISTING_FLOOD_PROTECTION_CARD = "existing_flood_protection"
+RIVER_NETWORK_CONTEXT_CARD = "river_network_context"
+
+SLOPE_VEGETATION_CARD_DIMENSIONS = (
+    "adaptation_subsection",
+    "land_use",
+    "metric",
+    "implementation_approach",
+    "unit",
+)
+MANGROVES_CARD_DIMENSIONS = (
+    "adaptation_subsection",
+    "shoreline_condition",
+    "metric",
+    "implementation_approach",
+    "unit",
+)
+RIVER_CATCHMENT_RESTORATION_CARD_DIMENSIONS = (
+    "adaptation_subsection",
+    "metric",
+    "implementation_approach",
+    "unit",
+)
+EXISTING_FLOOD_PROTECTION_CARD_DIMENSIONS = (
+    "adaptation_subsection",
+    "metric",
+    "unit",
+)
+RIVER_NETWORK_CONTEXT_CARD_DIMENSIONS = (
+    "adaptation_subsection",
+    "urbanisation_class",
+    "metric",
+    "unit",
+)
+ADAPTATION_POTENTIAL_CARD_DIMENSIONS = {
+    SLOPE_VEGETATION_CARD: SLOPE_VEGETATION_CARD_DIMENSIONS,
+    MANGROVES_CARD: MANGROVES_CARD_DIMENSIONS,
+    RIVER_CATCHMENT_RESTORATION_CARD: (
+        RIVER_CATCHMENT_RESTORATION_CARD_DIMENSIONS
+    ),
+    EXISTING_FLOOD_PROTECTION_CARD: (
+        EXISTING_FLOOD_PROTECTION_CARD_DIMENSIONS
+    ),
+    RIVER_NETWORK_CONTEXT_CARD: RIVER_NETWORK_CONTEXT_CARD_DIMENSIONS,
+}
+ADAPTATION_POTENTIAL_CARD_OPTIONAL_DIMENSIONS = {
+    SLOPE_VEGETATION_CARD: ("implementation_approach",),
+    MANGROVES_CARD: ("implementation_approach",),
+    RIVER_CATCHMENT_RESTORATION_CARD: ("implementation_approach",),
+    EXISTING_FLOOD_PROTECTION_CARD: (),
+    RIVER_NETWORK_CONTEXT_CARD: (),
+}
+
+NBS_METRIC_ROWS = (
+    ("opportunity_area", pd.NA, "km2"),
+    ("implementation_cost", "native_planting", "usd_2020"),
+    (
+        "implementation_cost",
+        "natural_regeneration",
+        "usd_2020",
+    ),
+    ("carbon_benefit", pd.NA, "tonnes"),
+    ("biodiversity_benefit", pd.NA, "index"),
+)
+IMPLEMENTATION_APPROACH_SOURCE_TOKENS = {
+    "native_planting": "planting",
+    "natural_regeneration": "regeneration",
 }
 
 
@@ -974,6 +1049,272 @@ def build_river_network_context_metrics(
     ):
         raise ValueError("River urbanisation lengths do not reconcile to total")
     return metrics
+
+
+def _finalize_adaptation_card_output(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    card: str,
+    long_metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    dimensions = ADAPTATION_POTENTIAL_CARD_DIMENSIONS[card]
+    identifiers = build_card_identifier_frame(
+        admin_regions,
+        config,
+        section="adaptation_potential",
+        card=card,
+    )
+    admin_order = {
+        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
+    }
+    output = identifiers.merge(
+        long_metrics,
+        on="adm_id",
+        how="left",
+        validate="one_to_many",
+    )
+    output["_admin_order"] = output["adm_id"].map(admin_order)
+    output = output.sort_values(
+        ["_admin_order", "_row_order"],
+        kind="stable",
+    ).drop(columns=["_admin_order", "_row_order"])
+    output["value"] = output["value"].round(3)
+    output = output[
+        [*CARD_IDENTIFIER_COLUMNS, *dimensions, "value"]
+    ].reset_index(drop=True)
+    validate_card_output(
+        output,
+        "adaptation_potential",
+        card,
+        dimensions,
+        optional_dimension_columns=(
+            ADAPTATION_POTENTIAL_CARD_OPTIONAL_DIMENSIONS[card]
+        ),
+    )
+    return output
+
+
+def _nbs_source_column(
+    opportunity: str,
+    category: str,
+    metric: str,
+    implementation_approach: object,
+) -> str:
+    prefix = f"nbs_{opportunity}"
+    if category != "total":
+        prefix = f"{prefix}_{category}"
+    if metric == "opportunity_area":
+        return (
+            f"{prefix}_total_km2"
+            if category == "total"
+            else f"{prefix}_km2"
+        )
+    if metric == "implementation_cost":
+        source_approach = IMPLEMENTATION_APPROACH_SOURCE_TOKENS[
+            str(implementation_approach)
+        ]
+        return f"{prefix}_{source_approach}_cost_total_usd_2020"
+    if metric == "carbon_benefit":
+        return f"{prefix}_carbon_benefit_total_tonnes"
+    if metric == "biodiversity_benefit":
+        return f"{prefix}_biodiversity_benefit_mean"
+    raise ValueError(f"Unsupported nature-based solution metric: {metric}")
+
+
+def _format_categorized_nbs_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+    *,
+    card: str,
+    opportunity: str,
+    category_column: str,
+    categories: tuple[str, ...],
+) -> pd.DataFrame:
+    parts: list[pd.DataFrame] = []
+    for category_order, category in enumerate(categories):
+        for metric_order, (
+            metric,
+            implementation_approach,
+            unit,
+        ) in enumerate(NBS_METRIC_ROWS):
+            source_column = _nbs_source_column(
+                opportunity,
+                category,
+                metric,
+                implementation_approach,
+            )
+            part = metrics[["adm_id", source_column]].rename(
+                columns={source_column: "value"}
+            )
+            part["adaptation_subsection"] = "nature_based_solutions"
+            part[category_column] = category
+            part["metric"] = metric
+            part["implementation_approach"] = implementation_approach
+            part["unit"] = unit
+            part["_row_order"] = (
+                category_order * len(NBS_METRIC_ROWS) + metric_order
+            )
+            parts.append(part)
+    return _finalize_adaptation_card_output(
+        config,
+        admin_regions,
+        card,
+        pd.concat(parts, ignore_index=True),
+    )
+
+
+def _format_river_catchment_restoration_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    parts: list[pd.DataFrame] = []
+    for row_order, (
+        metric,
+        implementation_approach,
+        unit,
+    ) in enumerate(NBS_METRIC_ROWS):
+        source_column = _nbs_source_column(
+            "river_catchment_restoration",
+            "total",
+            metric,
+            implementation_approach,
+        )
+        part = metrics[["adm_id", source_column]].rename(
+            columns={source_column: "value"}
+        )
+        part["adaptation_subsection"] = "nature_based_solutions"
+        part["metric"] = metric
+        part["implementation_approach"] = implementation_approach
+        part["unit"] = unit
+        part["_row_order"] = row_order
+        parts.append(part)
+    return _finalize_adaptation_card_output(
+        config,
+        admin_regions,
+        RIVER_CATCHMENT_RESTORATION_CARD,
+        pd.concat(parts, ignore_index=True),
+    )
+
+
+def _format_existing_flood_protection_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    long_metrics = metrics[
+        ["adm_id", "flopros_protection_standard_mode_rp"]
+    ].rename(columns={"flopros_protection_standard_mode_rp": "value"})
+    long_metrics["adaptation_subsection"] = "flood_protection"
+    long_metrics["metric"] = "protection_standard_mode"
+    long_metrics["unit"] = "return_period_years"
+    long_metrics["_row_order"] = 0
+    return _finalize_adaptation_card_output(
+        config,
+        admin_regions,
+        EXISTING_FLOOD_PROTECTION_CARD,
+        long_metrics,
+    )
+
+
+def _format_river_network_context_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    parts: list[pd.DataFrame] = []
+    for row_order, urbanisation_class in enumerate(
+        ("total", "rural", "town", "city")
+    ):
+        source_column = f"river_length_{urbanisation_class}_km"
+        part = metrics[["adm_id", source_column]].rename(
+            columns={source_column: "value"}
+        )
+        part["adaptation_subsection"] = "flood_protection"
+        part["urbanisation_class"] = urbanisation_class
+        part["metric"] = "river_length"
+        part["unit"] = "km"
+        part["_row_order"] = row_order
+        parts.append(part)
+    return _finalize_adaptation_card_output(
+        config,
+        admin_regions,
+        RIVER_NETWORK_CONTEXT_CARD,
+        pd.concat(parts, ignore_index=True),
+    )
+
+
+def assemble_adaptation_potential_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    flopros_metrics: pd.DataFrame,
+    nbs_metrics: pd.DataFrame,
+    river_network_context_metrics: pd.DataFrame,
+) -> dict[str, pd.DataFrame]:
+    """Reshape Adaptation Potential calculations into five card tables."""
+    return {
+        SLOPE_VEGETATION_CARD: _format_categorized_nbs_card_metrics(
+            config,
+            admin_regions,
+            nbs_metrics,
+            card=SLOPE_VEGETATION_CARD,
+            opportunity="slope_vegetation",
+            category_column="land_use",
+            categories=("total", "other", "crops", "bare_ground"),
+        ),
+        MANGROVES_CARD: _format_categorized_nbs_card_metrics(
+            config,
+            admin_regions,
+            nbs_metrics,
+            card=MANGROVES_CARD,
+            opportunity="mangrove",
+            category_column="shoreline_condition",
+            categories=(
+                "total",
+                "accreting",
+                "static_moderate_retreat",
+                "fast_retreat",
+            ),
+        ),
+        RIVER_CATCHMENT_RESTORATION_CARD: (
+            _format_river_catchment_restoration_card_metrics(
+                config,
+                admin_regions,
+                nbs_metrics,
+            )
+        ),
+        EXISTING_FLOOD_PROTECTION_CARD: (
+            _format_existing_flood_protection_card_metrics(
+                config,
+                admin_regions,
+                flopros_metrics,
+            )
+        ),
+        RIVER_NETWORK_CONTEXT_CARD: (
+            _format_river_network_context_card_metrics(
+                config,
+                admin_regions,
+                river_network_context_metrics,
+            )
+        ),
+    }
+
+
+def build_adaptation_potential_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Calculate and build the five downloadable Adaptation Potential cards."""
+    if admin_regions is None:
+        admin_regions = load_admin_boundaries(config)
+    return assemble_adaptation_potential_card_metrics(
+        config,
+        admin_regions,
+        build_flopros_metrics(config, admin_regions),
+        build_nbs_metrics(config, admin_regions),
+        build_river_network_context_metrics(config, admin_regions),
+    )
 
 
 def assemble_adaptation_potential_metrics(

@@ -7,10 +7,13 @@ import pandas as pd
 from ..boundaries import load_admin_boundaries
 from ..config import PipelineConfig, RiskRunConfig
 from ..outputs import (
+    CARD_IDENTIFIER_COLUMNS,
     IDENTIFIER_COLUMNS,
+    build_card_identifier_frame,
     build_identifier_frame,
     merge_metric_tables,
     namespace_metric_table,
+    validate_card_output,
     validate_section_output,
 )
 from ..tables import read_gpkg_attributes, validate_columns, validate_unique
@@ -64,6 +67,79 @@ POPULATION_GROUP_TOKENS = {
     "wealth_q4": "wealth_q4",
     "wealth_q5": "wealth_q5",
 }
+
+POPULATION_CARD = "population"
+CAPITAL_STOCK_CARD = "capital_stock"
+DIRECT_DAMAGE_CARD = "direct_damage"
+
+POPULATION_CARD_DIMENSIONS = (
+    "risk_subsection",
+    "hazard",
+    "model",
+    "scenario",
+    "population_layer",
+    "population_group",
+    "risk_metric",
+    "unit",
+)
+CAPITAL_STOCK_CARD_DIMENSIONS = (
+    "risk_subsection",
+    "hazard",
+    "model",
+    "scenario",
+    "sector",
+    "risk_metric",
+    "unit",
+)
+DIRECT_DAMAGE_CARD_DIMENSIONS = (
+    "risk_subsection",
+    "hazard",
+    "model",
+    "scenario",
+    "epoch",
+    "infrastructure_type",
+    "asset_class",
+    "metric",
+    "unit",
+)
+RISK_CARD_DIMENSIONS = {
+    POPULATION_CARD: POPULATION_CARD_DIMENSIONS,
+    CAPITAL_STOCK_CARD: CAPITAL_STOCK_CARD_DIMENSIONS,
+    DIRECT_DAMAGE_CARD: DIRECT_DAMAGE_CARD_DIMENSIONS,
+}
+RISK_CARD_OPTIONAL_DIMENSIONS = {
+    POPULATION_CARD: (),
+    CAPITAL_STOCK_CARD: (),
+    DIRECT_DAMAGE_CARD: ("epoch",),
+}
+
+RISK_DEMOGRAPHIC_GROUP_METRICS = {
+    "total": "total",
+    "female": "female",
+    "male": "male",
+    "infant": "under_5",
+    "schoolage": "school_children_5_14",
+    "working": "working_age_15_64",
+    "childbearing": "female_childbearing_15_49",
+    "elderly": "older_65_plus",
+}
+RISK_WEALTH_GROUP_METRICS = {
+    f"q{quintile}": f"wealth_q{quintile}"
+    for quintile in range(1, 6)
+}
+RISK_CAPITAL_STOCK_SECTORS = (
+    "total",
+    "residential",
+    "non_residential",
+    "infrastructure",
+)
+RISK_ROAD_CLASSES = (
+    "motorway",
+    "trunk",
+    "primary",
+    "secondary",
+    "tertiary",
+)
 
 
 def _validate_admin_reference(
@@ -511,6 +587,288 @@ def build_direct_network_risk_metrics(
             "Road EAD",
         )
     return metrics
+
+
+def _population_risk_metric(risk_map: str) -> tuple[str, str]:
+    if risk_map == DEFAULT_POPULATION_RISK_MAP:
+        return "average_annual_exposure_protected", "people_per_year"
+    return risk_map.lower(), "people"
+
+
+def _capital_stock_risk_metric(risk_map: str) -> tuple[str, str]:
+    if risk_map == DEFAULT_CAPITAL_STOCK_RISK_MAP:
+        return "average_annual_loss_protected", "usd_per_year"
+    return risk_map.lower(), "usd"
+
+
+def _finalize_card_output(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    card: str,
+    long_metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    dimensions = RISK_CARD_DIMENSIONS[card]
+    identifiers = build_card_identifier_frame(
+        admin_regions,
+        config,
+        section="risk",
+        card=card,
+    )
+    admin_order = {
+        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
+    }
+    output = identifiers.merge(
+        long_metrics,
+        on="adm_id",
+        how="left",
+        validate="one_to_many",
+    )
+    output["_admin_order"] = output["adm_id"].map(admin_order)
+    output = output.sort_values(
+        ["_admin_order", "_row_order"],
+        kind="stable",
+    ).drop(columns=["_admin_order", "_row_order"])
+    output["value"] = output["value"].round(3)
+    output = output[
+        [*CARD_IDENTIFIER_COLUMNS, *dimensions, "value"]
+    ].reset_index(drop=True)
+    validate_card_output(
+        output,
+        "risk",
+        card,
+        dimensions,
+        optional_dimension_columns=RISK_CARD_OPTIONAL_DIMENSIONS[card],
+    )
+    return output
+
+
+def _format_population_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    risk_maps = tuple(POPULATION_RISK_MAP_PREFIXES)
+    groups = [
+        ("demographics", group, source_token)
+        for group, source_token in RISK_DEMOGRAPHIC_GROUP_METRICS.items()
+    ]
+    groups.extend(
+        ("wealth", group, source_token)
+        for group, source_token in RISK_WEALTH_GROUP_METRICS.items()
+    )
+    groups.append(("wealth", "bottom_40", None))
+
+    parts: list[pd.DataFrame] = []
+    for group_order, (layer, group, source_token) in enumerate(groups):
+        for risk_order, risk_map in enumerate(risk_maps):
+            prefix = POPULATION_RISK_MAP_PREFIXES[risk_map]
+            part = metrics[["adm_id"]].copy()
+            if group == "bottom_40":
+                part["value"] = (
+                    metrics[f"{prefix}_wealth_q1"]
+                    + metrics[f"{prefix}_wealth_q2"]
+                )
+            else:
+                part["value"] = metrics[f"{prefix}_{source_token}"]
+            risk_metric, unit = _population_risk_metric(risk_map)
+            part["risk_subsection"] = "socioeconomic"
+            part["hazard"] = "river_flood"
+            part["model"] = "jrc"
+            part["scenario"] = "baseline"
+            part["population_layer"] = layer
+            part["population_group"] = group
+            part["risk_metric"] = risk_metric
+            part["unit"] = unit
+            part["_row_order"] = group_order * len(risk_maps) + risk_order
+            parts.append(part)
+
+    return _finalize_card_output(
+        config,
+        admin_regions,
+        POPULATION_CARD,
+        pd.concat(parts, ignore_index=True),
+    )
+
+
+def _format_capital_stock_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    risk_maps = tuple(CAPITAL_STOCK_RISK_MAP_PREFIXES)
+    parts: list[pd.DataFrame] = []
+    for sector_order, sector in enumerate(RISK_CAPITAL_STOCK_SECTORS):
+        for risk_order, risk_map in enumerate(risk_maps):
+            prefix = CAPITAL_STOCK_RISK_MAP_PREFIXES[risk_map]
+            part = metrics[["adm_id", f"{prefix}_{sector}"]].rename(
+                columns={f"{prefix}_{sector}": "value"}
+            )
+            risk_metric, unit = _capital_stock_risk_metric(risk_map)
+            part["risk_subsection"] = "socioeconomic"
+            part["hazard"] = "river_flood"
+            part["model"] = "jrc"
+            part["scenario"] = "baseline"
+            part["sector"] = sector
+            part["risk_metric"] = risk_metric
+            part["unit"] = unit
+            part["_row_order"] = sector_order * len(risk_maps) + risk_order
+            parts.append(part)
+
+    return _finalize_card_output(
+        config,
+        admin_regions,
+        CAPITAL_STOCK_CARD,
+        pd.concat(parts, ignore_index=True),
+    )
+
+
+def _direct_damage_part(
+    metrics: pd.DataFrame,
+    source_column: str,
+    *,
+    hazard: str,
+    model: str,
+    epoch: object,
+    infrastructure_type: str,
+    asset_class: str,
+    row_order: int,
+) -> pd.DataFrame:
+    part = metrics[["adm_id"]].copy()
+    part["value"] = (
+        metrics[source_column]
+        if source_column in metrics
+        else 0.0
+    )
+    part["risk_subsection"] = "infrastructure_networks"
+    part["hazard"] = hazard
+    part["model"] = model
+    part["scenario"] = "baseline"
+    part["epoch"] = epoch
+    part["infrastructure_type"] = infrastructure_type
+    part["asset_class"] = asset_class
+    part["metric"] = "direct_damage"
+    part["unit"] = "usd_per_year"
+    part["_row_order"] = row_order
+    return part
+
+
+def _format_direct_damage_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    river_metrics: pd.DataFrame,
+    cyclone_metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    parts = [
+        _direct_damage_part(
+            river_metrics,
+            "road_ead_total",
+            hazard="river_flood",
+            model="jrc",
+            epoch=pd.NA,
+            infrastructure_type="road",
+            asset_class="all",
+            row_order=0,
+        )
+    ]
+    for class_order, road_class in enumerate(RISK_ROAD_CLASSES, start=1):
+        parts.append(
+            _direct_damage_part(
+                river_metrics,
+                f"road_ead_{road_class}",
+                hazard="river_flood",
+                model="jrc",
+                epoch=pd.NA,
+                infrastructure_type="road",
+                asset_class=road_class,
+                row_order=class_order,
+            )
+        )
+    parts.extend(
+        [
+            _direct_damage_part(
+                river_metrics,
+                "rail_ead_total",
+                hazard="river_flood",
+                model="jrc",
+                epoch=pd.NA,
+                infrastructure_type="rail",
+                asset_class="all",
+                row_order=6,
+            ),
+            _direct_damage_part(
+                cyclone_metrics,
+                "power_ead_total",
+                hazard="tropical_cyclone",
+                model="storm",
+                epoch=2020,
+                infrastructure_type="power",
+                asset_class="all",
+                row_order=7,
+            ),
+        ]
+    )
+    return _finalize_card_output(
+        config,
+        admin_regions,
+        DIRECT_DAMAGE_CARD,
+        pd.concat(parts, ignore_index=True),
+    )
+
+
+def assemble_risk_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame,
+    population_metrics: pd.DataFrame,
+    capital_stock_metrics: pd.DataFrame,
+    river_direct_metrics: pd.DataFrame,
+    cyclone_direct_metrics: pd.DataFrame,
+) -> dict[str, pd.DataFrame]:
+    """Reshape the three supported Risk calculations into card tables."""
+    return {
+        POPULATION_CARD: _format_population_card_metrics(
+            config,
+            admin_regions,
+            population_metrics,
+        ),
+        CAPITAL_STOCK_CARD: _format_capital_stock_card_metrics(
+            config,
+            admin_regions,
+            capital_stock_metrics,
+        ),
+        DIRECT_DAMAGE_CARD: _format_direct_damage_card_metrics(
+            config,
+            admin_regions,
+            river_direct_metrics,
+            cyclone_direct_metrics,
+        ),
+    }
+
+
+def build_risk_card_metrics(
+    config: PipelineConfig,
+    admin_regions: gpd.GeoDataFrame | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Calculate and build the three supported downloadable Risk cards."""
+    if admin_regions is None:
+        admin_regions = load_admin_boundaries(config)
+    river_run = config.risk_run("river_flood_jrc_baseline")
+    cyclone_run = config.risk_run("tropical_cyclone_storm_baseline_2020")
+    return assemble_risk_card_metrics(
+        config,
+        admin_regions,
+        build_population_risk_metrics(config, admin_regions, river_run),
+        build_capital_stock_risk_metrics(config, admin_regions, river_run),
+        build_direct_network_risk_metrics(
+            config,
+            admin_regions,
+            river_run,
+        ),
+        build_direct_network_risk_metrics(
+            config,
+            admin_regions,
+            cyclone_run,
+        ),
+    )
 
 
 def assemble_risk_run_metrics(

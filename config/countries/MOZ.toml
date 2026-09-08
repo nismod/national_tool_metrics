@@ -21,6 +21,7 @@ accessibility_dir = "data/raw/MOZ/vulnerability/accessibility"
 river_flood_hazard_dir = "data/raw/MOZ/hazard/river_flooding"
 tropical_cyclone_hazard_dir = "data/raw/global/tropical_cyclone"
 adaptation_potential_dir = "data/raw/MOZ/adaptation_potential"
+adaptation_outcomes_dir = "data/raw/MOZ/adaptation_outcomes"
 nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
 
 [parameters]
@@ -61,3 +62,25 @@ y_column = "frac_flood"
 ranked_by = "relative_wealth"
 rank_direction = "lowest_to_highest"
 description = "Cumulative share of baseline protection-adjusted JRC river-flood risk by cumulative population share."
+
+[[concentration_curve_sets]]
+glob = "data/raw/MOZ/concentration_curves/MOZ_jrc_adapted_rl_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^MOZ_jrc_adapted_rl_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__relocation_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of relocation-adapted JRC river-flood risk for scenario {duc} by cumulative population share."
+expected_count = 7
+
+[[concentration_curve_sets]]
+glob = "data/raw/MOZ/concentration_curves/MOZ_jrc_adapted_fp_rp*_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^MOZ_jrc_adapted_fp_(?P<rp>rp\d+)_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__flood_protection_{rp}_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of flood-protection-adapted JRC river-flood risk for scenarios {rp} and {duc} by cumulative population share."
+expected_count = 35

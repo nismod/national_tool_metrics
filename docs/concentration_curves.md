@@ -15,10 +15,11 @@ Store local input CSVs under:
 data/raw/<ISO3>/concentration_curves/
 ```
 
-Raw files are ignored by Git. Their filenames do not determine their output
-meaning; every curve must be explicitly registered in the country's TOML file.
-This allows upstream workflows and contributors to retain useful source
-filenames without creating a fragile filename parser.
+Raw files are ignored by Git. One-off curves are registered explicitly in the
+country's TOML file. Repeated scenario families may instead use a batch
+registry with a constrained glob and a full-match filename regular expression.
+Only a batch registry opts into deriving identifiers from filenames; unrelated
+CSVs are never loaded automatically.
 
 Each input must contain at least two configured numeric columns:
 
@@ -47,13 +48,13 @@ currency value. Any grouping, tie handling, or interpolation needed to create
 the shared grid belongs to the documented upstream calculation. This notebook
 does not silently reconstruct or resample an already supplied curve.
 
-## Registry
+## Explicit registry
 
 Register each curve in `config/countries/<ISO3>.toml`:
 
 ```toml
 [concentration_curves.flood_risk__jrc__baseline_protected]
-path = "data/raw/KEN/concentration_curves/KEN_jrc_protected_V-JRC_concentration_curve.csv"
+path = "data/raw/KEN/concentration_curves/KEN_jrc_protected_V-EXP_concentration_curve.csv"
 x_column = "frac_pop"
 y_column = "frac_flood"
 ranked_by = "relative_wealth"
@@ -83,6 +84,57 @@ hospital_travel_time__accessibility_model__baseline_walking
 the interpretation of a concentration curve. `description` should define the
 outcome, hazard where applicable, population basis, and scenario in plain
 language.
+
+## Batch registry
+
+Use `[[concentration_curve_sets]]` when a scenario family follows a stable
+filename convention. Named regular-expression captures are inserted into the
+curve ID and description templates. For example, a relocation family can be
+registered once:
+
+```toml
+[[concentration_curve_sets]]
+glob = "data/raw/KEN/concentration_curves/KEN_jrc_adapted_rl_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^KEN_jrc_adapted_rl_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__relocation_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of relocation-adapted JRC river-flood risk for {duc} by cumulative population share."
+expected_count = 6
+```
+
+A flood-protection family with two filename dimensions uses two captures:
+
+```toml
+[[concentration_curve_sets]]
+glob = "data/raw/KEN/concentration_curves/KEN_jrc_adapted_fp_rp*_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^KEN_jrc_adapted_fp_(?P<rp>rp\d+)_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__flood_protection_{rp}_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of flood-protection-adapted JRC river-flood risk for {rp} and {duc} by cumulative population share."
+```
+
+`description` may replace `description_template` when every curve in the set
+shares the same text. `expected_count` is optional, but recommended for a known
+scenario matrix because it catches missing inputs. Batch files are registered
+in natural filename order after explicitly registered curves, so `rp20` sorts
+before `rp100`.
+
+Configuration loading fails when:
+
+- the glob matches no files;
+- `expected_count` does not equal the number of matched files;
+- a matched filename does not fully match `filename_regex`;
+- a template refers to an absent named capture;
+- a generated curve ID does not follow the three-component identifier
+  contract;
+- two entries generate the same curve ID; or
+- the same input path is registered more than once.
 
 ## Validation
 
@@ -119,12 +171,15 @@ cumulative_population_share,flood_risk__jrc__baseline_protected
 1.00,1.0000
 ```
 
-Column order follows registry order. Generated results are ignored by Git.
+Column order follows registry order: explicit entries first, followed by batch
+sets and their naturally sorted filenames. Generated results are ignored by
+Git.
 
 ## Adding a curve
 
 1. Place its input CSV in the country concentration-curve directory.
-2. Add a uniquely named registry table to the country TOML file.
+2. Add a uniquely named explicit registry table, or ensure it matches exactly
+   one configured batch set.
 3. Record the X/Y source columns and ranking metadata explicitly.
 4. Add or update provenance in `docs/data_sources.md`.
 5. Run the notebook and review both the registry table and plot.

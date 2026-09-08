@@ -4,9 +4,12 @@ This repository converts hazard, exposure, vulnerability, risk, and adaptation
 datasets into standardized subnational metrics for an interactive national
 tool. Kenya (`KEN`) is the implemented reference country.
 
-Each implemented tool section has one notebook and produces one CSV with one
-row per administrative region. Hazard, scenario, model, epoch, and return-period
-distinctions are encoded in metric column names rather than additional rows.
+Each implemented tool section has one notebook. Download outputs are migrating
+from one wide CSV per section to one tidy CSV per sidebar card. Hazard,
+Exposure, Relative Wealth Index, Wealth Distribution, Risk, Adaptation
+Potential, and all three Adaptation Outcomes cards use
+the card contract; the other outputs retain their existing contracts until
+their card schemas are agreed.
 
 ## Implementation status
 
@@ -17,7 +20,7 @@ distinctions are encoded in metric column names rather than additional rows.
 | Vulnerability | Relative Wealth Index, wealth distribution, and baseline accessibility | Implemented |
 | Risk | Socioeconomic river-flood risk and direct infrastructure-network risk | Implemented |
 | Adaptation Potential | FLOPROS, nature-based solutions, and river-network context | Implemented |
-| Adaptation Analysis | Outcomes and comparisons | Scope to be agreed |
+| Adaptation Outcomes | Dry proofing, relocation, and flood-protection costs and benefits | Implemented |
 
 Indirect tropical-cyclone network risk and social-infrastructure risk are not
 yet produced by this repository. The social-infrastructure risk component will
@@ -39,6 +42,7 @@ national_tool_metrics/
         vulnerability/
         risk/
         adaptation_potential/
+        adaptation_outcomes/
         concentration_curves/
       global/
         nature_based_solutions/
@@ -54,6 +58,7 @@ national_tool_metrics/
     03_vulnerability_metrics.ipynb
     04_risk_metrics.ipynb
     05_adaptation_potential_metrics.ipynb
+    06_adaptation_outcomes_metrics.ipynb
     concentration_curves.ipynb
   results/<ISO3>/
     <section>/
@@ -116,7 +121,8 @@ Run the notebook for the section you want to rebuild:
 
 The notebooks are section-specific and do not need to be run as one continuous
 pipeline. Each notebook loads the country configuration, validates its inputs,
-builds the section table, and writes the corresponding CSV under `results/`.
+builds its metric tables, and writes the corresponding CSV files under
+`results/`.
 
 The unnumbered concentration-curve notebook is shared across multiple tool
 sections. It validates the curves registered in the country configuration and
@@ -126,7 +132,58 @@ file contract and naming convention.
 
 ## Output contract
 
-Every section CSV has one row per administrative region and starts with:
+Hazard, Exposure, the two approved Vulnerability cards, the three supported
+Risk cards, and the five Adaptation Potential cards write one downloadable CSV
+per card. Hazard writes:
+
+```text
+results/<ISO3>/hazard/<ISO3>_<admin-level>_hazard_river_flooding_metrics.csv
+results/<ISO3>/hazard/<ISO3>_<admin-level>_hazard_tropical_cyclone_wind_metrics.csv
+```
+
+These files use tidy rows. Return period, hazard metric, wind threshold, and
+display mode are explicit columns, and the plotted number is stored in
+`value`. See [the card CSV contracts](docs/card_csv_contracts.md) for the exact
+schemas and permitted parameter values.
+
+Exposure writes Population, Capital Stock, Roads, Rail, Power, Healthcare
+Facilities, and Educational Facilities card CSVs under
+`results/<ISO3>/exposure/`. All card CSVs use the same standard identifier
+prefix before their card-specific parameters and `value`.
+
+Vulnerability writes:
+
+```text
+results/<ISO3>/vulnerability/<ISO3>_<admin-level>_vulnerability_relative_wealth_index_metrics.csv
+results/<ISO3>/vulnerability/<ISO3>_<admin-level>_vulnerability_wealth_distribution_metrics.csv
+```
+
+Accessibility is supplied through a separate workflow and is not included in
+these two files.
+
+Risk writes Population, Capital Stock, and Direct Damage card CSVs under
+`results/<ISO3>/risk/`. Every Risk CSV includes `risk_subsection`, `hazard`,
+`model`, and `scenario`. Population and Capital Stock are limited to baseline
+JRC river flooding; Direct Damage contains both river-flood and
+tropical-cyclone rows. Indirect Impacts, Facilities, and Accessibility remain
+deferred or separate workflows.
+
+Adaptation Potential writes Slope Vegetation, Mangroves, River Catchment
+Restoration, Existing Flood Protection, and River Network Context card CSVs
+under `results/<ISO3>/adaptation_potential/`. Every file includes
+`adaptation_subsection`; adjustable categories, metrics, and implementation
+approaches are represented as columns.
+
+Adaptation Outcomes writes Dry Proofing, Relocation, and Flood Protection cards
+under `results/<ISO3>/adaptation_outcomes/`. They report adaptation cost metrics,
+baseline, adapted, and avoided capital-stock losses and flood exposure, plus
+baseline, adapted, and changed concentration-index values. Relocation includes
+all seven degree-of-urbanisation thresholds as explicit CSV dimensions. Flood
+Protection crosses those thresholds with five design return periods and three
+adaptation-cost estimates.
+
+Sections not yet migrated continue to use one wide section CSV with one row
+per administrative region. Those CSVs start with:
 
 ```text
 country_iso3
@@ -147,15 +204,15 @@ tropical_cyclone_storm_baseline_2020_wind_area_cat3plus_rp100_pct_admin
 tropical_cyclone_storm_baseline_2020_power_ead_total
 ```
 
-The standard output path is:
+Their standard output path is:
 
 ```text
 results/<ISO3>/<section>/<ISO3>_<admin-level>_<section>_metrics.csv
 ```
 
 Metric definitions, units, and aggregation methods are maintained in
-[`docs/metric_dictionary.csv`](docs/metric_dictionary.csv). Its `hazard` column
-is descriptive metadata and is not an identifier in the section CSVs.
+[`docs/metric_dictionary.csv`](docs/metric_dictionary.csv). It remains the
+calculation dictionary while sections migrate to card outputs.
 
 ## Data and Git
 
