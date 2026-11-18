@@ -398,6 +398,6 @@ results/<ISO3>/concentration_curves/<ISO3>_concentration_curves.csv
 2. Add the required boundary layer under `data/boundaries/<ISO3>/`.
 3. Populate each implemented section's input contract for the selected level.
 4. Record source provenance in `docs/data_sources.md`.
-5. Run the automated tests and then execute each applicable notebook.
+5. Set `COUNTRY` in each applicable notebook and choose **Run All**.
 6. Check row coverage, metric names, units, and reconciliation rules before
    publishing the CSVs.
