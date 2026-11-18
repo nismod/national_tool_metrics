@@ -2,3 +2,10 @@
 iso3 = "KEN"
 name = "Kenya"
 admin_level = "adm0"
+[cards]
+hazard = ["river_flooding", "tropical_cyclone_wind"]
+exposure = ["population", "capital_stock", "roads", "rail", "power"]
+vulnerability = ["relative_wealth_index", "wealth_distribution"]
+risk = ["population", "capital_stock", "direct_damage"]
+adaptation_potential = ["slope_vegetation", "mangroves", "river_catchment_restoration", "existing_flood_protection", "river_network_context"]
+adaptation_outcomes = ["dry_proofing", "relocation", "flood_protection"]
