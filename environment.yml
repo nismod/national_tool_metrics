@@ -5,9 +5,9 @@ dependencies:
   - python=3.11
   - jupyter
   - notebook
-  - notebook
   - numpy
   - pandas
+  - matplotlib
   - geopandas
   - rasterio
   - rasterstats

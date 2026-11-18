@@ -1,156 +1,99 @@
 # National Tool Metrics
 
-This repository provides a simple workflow for converting OPSIS risk model outputs and context datasets into standardized sub-national metrics for an interactive national tool.
+The notebooks produce the national tool's downloadable metric CSVs. The repo
+includes country settings for Kenya (`KEN`) and Mozambique (`MOZ`).
 
-The aim is to keep the process lightweight and repeatable:
+## Run a notebook
 
-1. Store country boundary layers in a consistent structure.
-2. Store raw input data by country, analysis module, and hazard where relevant.
-3. Use one notebook per analysis module to summarize inputs to administrative regions.
-4. Export clean CSV files with one row per sub-national region and one column per metric.
+From the repository root, create the Conda environment and start Jupyter.
 
-Country folders should use ISO3 codes. The first test country is `KEN`. The first hazard for the risk modules is flooding, but the folder structure is designed to allow additional hazards later.
-
-## Repository Structure
-
-```text
-national_tool_metrics/
-  data/
-    boundaries/
-      KEN/
-        adm0/
-        adm1/
-        adm2/
-
-    raw/
-      KEN/
-        context/
-        socioeconomic/
-          flooding/
-        infrastructure/
-          flooding/
-        service_disruption/
-          flooding/
-
-  notebooks/
-
-  src/
-
-  results/
-    KEN/
-      context/
-      socioeconomic/
-        flooding/
-      infrastructure/
-        flooding/
-      service_disruption/
-        flooding/
-
-  docs/
+```sh
+conda env create -f environment.yml
+conda activate tooling
+jupyter notebook
 ```
 
-## Analysis Modules
+1. Stage the raw inputs for the notebook you want to run using the paths below.
+2. Set `COUNTRY` in the notebook's first code cell. Set the reporting level
+   (`adm0`, `adm1`, or `adm2`) in `config/countries/<ISO3>.toml`.
+3. Choose **Run All** in Jupyter. The build cell previews each card and the
+   export cell prints the CSV paths.
 
-The current planned modules are:
+Each notebook runs independently with its own inputs.
 
-- `context`: non-risk data such as population, demographics, wealth, infrastructure, and nature-based solutions.
-- `socioeconomic`: socioeconomic risk metrics derived from model outputs.
-- `infrastructure`: infrastructure exposure, damage, or loss metrics derived from model outputs.
-- `service_disruption`: service disruption metrics derived from model outputs.
+## Raw inputs by notebook
 
-Risk modules are organized by hazard. For example:
+All six section notebooks use the administrative boundaries for the selected
+country and level. By default, place the shapefile and its companion files at
+`data/boundaries/<ISO3>/<admin-level>/<ISO3>_<admin-level>.shp`. Precomputed
+summaries must match that level. Concentration Curves uses country-level CSVs.
 
-```text
-data/raw/KEN/socioeconomic/flooding/
+| Notebook | Raw inputs and default locations |
+|---|---|
+| [01 Hazard](notebooks/01_hazard_metrics.ipynb) | Country JRC flood-depth GeoTIFFs in `data/raw/<ISO3>/hazard/river_flooding/` and global STORM wind-speed GeoTIFFs in `data/raw/global/tropical_cyclone/`. |
+| [02 Exposure](notebooks/02_exposure_metrics.ipynb) | Eight WorldPop demographic rasters and three capital-stock rasters under `data/raw/<ISO3>/exposure/`. Roads, rail, and power use the same network GeoPackages as Risk. Hospital and school counts use summary CSVs in `data/raw/<ISO3>/exposure/facilities/` when available. |
+| [03 Vulnerability](notebooks/03_vulnerability_metrics.ipynb) | Two precomputed GeoPackages under `data/raw/<ISO3>/vulnerability/`. One contains mean and population-weighted Relative Wealth Index. The other contains population totals by wealth quintile. |
+| [04 Risk](notebooks/04_risk_metrics.ipynb) | JRC summaries of flooded population and capital-stock loss for protected average annual risk and return-period events in `data/raw/<ISO3>/risk/socioeconomic/river_flood/`. Direct damage uses JRC road and rail GeoPackages and a STORM power GeoPackage under `data/raw/<ISO3>/risk/infrastructure_networks/direct/`. |
+| [05 Adaptation Potential](notebooks/05_adaptation_potential_metrics.ipynb) | FLOPROS protection raster, river network GeoPackage, and GHS-SMOD urbanisation raster in `data/raw/<ISO3>/adaptation_potential/`. Global rasters in `data/raw/global/nature_based_solutions/` supply opportunity areas, planting and regeneration costs, carbon, and biodiversity. |
+| [06 Adaptation Outcomes](notebooks/06_adaptation_outcomes_metrics.ipynb) | Precomputed GeoPackages in `data/raw/<ISO3>/adaptation_outcomes/` covering adaptation costs, baseline and adapted capital-stock losses, and flood-exposure summaries. Include the required dry-proofing, relocation, and flood-protection scenarios. |
+| [Concentration Curves](notebooks/concentration_curves.ipynb) | Precomputed curve CSVs in `data/raw/<ISO3>/concentration_curves/` containing cumulative population and outcome shares for baseline and registered adaptation scenarios. |
+
+See [Data layout](docs/data_layout.md) for exact filenames, fields, and scenario
+requirements. See [Data sources](docs/data_sources.md) for dataset provenance.
+
+## Add a country
+
+Create `config/countries/<ISO3>.toml` with the country code, name, and
+administrative level (`adm0`, `adm1`, or `adm2`). For Tanzania, save the
+following as `config/countries/TZA.toml`.
+
+```toml
+[country]
+iso3 = "TZA"
+name = "Tanzania"
+admin_level = "adm1"
 ```
 
-Future hazards can be added using the same pattern:
+Each country inherits [config/defaults.toml](config/defaults.toml). If a path,
+boundary field, processing parameter, or risk-run setting differs, add that
+key to the country file under `[sources]`, `[boundaries]`,
+`[parameters]`, or the relevant `[risk_runs...]` table. Relative paths start at
+the repository root. For custom curve inputs, override the registry in the
+country file. [Concentration curve registry](docs/concentration_curves.md)
 
-```text
-data/raw/KEN/socioeconomic/tropical_cyclone/
-data/raw/KEN/infrastructure/tropical_cyclone/
-data/raw/KEN/service_disruption/tropical_cyclone/
+Set `COUNTRY = "TZA"` in the notebook and run it.
+
+### Run only available cards
+
+Add a `[cards]` table to the country TOML when a section has data for only
+some cards. For example, this runs River Flooding and Relative Wealth Index
+when you open their respective notebooks.
+
+```toml
+[cards]
+hazard = ["river_flooding"]
+vulnerability = ["relative_wealth_index"]
 ```
 
-## Boundary Data
+Omit a section from `[cards]` to build all its cards. Use an empty list, such
+as `adaptation_outcomes = []`, to skip an entire section. Use the card names
+from the CSV filenames in [the card contracts](docs/card_csv_contracts.md).
+Each selected card needs its required inputs and its full set of return
+periods or scenarios. Concentration Curves uses its own registry.
 
-Country boundary layers should be stored under:
+The notebook lists the selected and skipped cards before calculating metrics.
+It reports any CSVs from earlier runs for skipped cards. Those files remain
+on disk, so use the paths printed by the export cell to identify this run's
+results.
 
-```text
-data/boundaries/<ISO3>/
-```
+Raw datasets, boundary files, and generated CSVs are kept out of Git.
 
-For `KEN`, the current folders are:
+## Outputs
 
-```text
-data/boundaries/KEN/adm0/
-data/boundaries/KEN/adm1/
-data/boundaries/KEN/adm2/
-```
-
-Each boundary layer should include a stable administrative identifier that can be carried into the final metric CSVs.
-
-## Notebook Workflow
-
-Each analysis module should have one notebook in `notebooks/`.
-
-The notebooks should follow the same broad pattern:
-
-1. Set the country, administrative level, module, and hazard if relevant.
-2. Load the relevant boundary layer.
-3. Load the raw input data.
-4. Clean and standardize input columns.
-5. Summarize or aggregate the data to the chosen administrative level.
-6. Create metric columns.
-7. Export a standardized CSV to `results/`.
-
-Example notebook names:
-
-```text
-notebooks/01_context_metrics.ipynb
-notebooks/02_socioeconomic_risk_metrics.ipynb
-notebooks/03_infrastructure_risk_metrics.ipynb
-notebooks/04_service_disruption_risk_metrics.ipynb
-```
-
-## Output Format
-
-Each notebook should produce one CSV with one row per sub-national region.
-
-Suggested standard identifier columns:
-
-```text
-country_iso3
-country_name
-admin_level
-adm_id
-adm_name
-module
-hazard
-```
-
-These should be followed by the metric columns created by the notebook.
-
-Example output path:
-
-```text
-results/KEN/socioeconomic/flooding/KEN_adm2_socioeconomic_flooding_metrics.csv
-```
-
-For the `context` module, use `hazard = none` or omit the hazard column if the downstream tool does not need it.
-
-## Metric Dictionary
-
-Metric definitions should be documented in:
-
-```text
-docs/metric_dictionary.csv
-```
-
-Suggested columns:
-
-```text
-module,hazard,metric_name,description,unit,aggregation_method,source_notes
-```
-
-This file should make it clear what each output column means and how it was calculated.
+The six section notebooks write one tidy CSV per card under
+`results/<ISO3>/<section>/` using
+`<ISO3>_<admin-level>_<section>_<card>_metrics.csv`. The concentration-curve
+notebook writes `results/<ISO3>/concentration_curves/<ISO3>_concentration_curves.csv`.
+See the [card CSV contracts](docs/card_csv_contracts.md) for metric definitions,
+units, and output schemas. See the [card documentation](docs/cards/README.md)
+for plain-language summaries and calculation methods.
