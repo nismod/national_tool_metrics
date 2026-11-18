@@ -72,4 +72,5 @@ The six section notebooks write one tidy CSV per card under
 `<ISO3>_<admin-level>_<section>_<card>_metrics.csv`. The concentration-curve
 notebook writes `results/<ISO3>/concentration_curves/<ISO3>_concentration_curves.csv`.
 See the [card CSV contracts](docs/card_csv_contracts.md) for metric definitions,
-units, and output schemas.
+units, and output schemas. See the [card documentation](docs/cards/README.md)
+for plain-language summaries and calculation methods.
