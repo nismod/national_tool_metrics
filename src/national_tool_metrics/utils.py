@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass, field
 import glob as glob_module
 from math import ceil, floor
 from pathlib import Path
@@ -24,6 +24,9 @@ from rasterstats import zonal_stats
 # Country configuration
 
 _ADMIN_LEVEL_PATTERN = re.compile(r"^adm\d+$", re.IGNORECASE)
+_CARD_SECTIONS = {
+    "hazard", "exposure", "vulnerability", "risk", "adaptation_potential", "adaptation_outcomes",
+}
 _CONCENTRATION_CURVE_ID_PATTERN = re.compile(
     r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*"
     r"__[a-z][a-z0-9]*(?:_[a-z0-9]+)*"
@@ -211,6 +214,18 @@ class PipelineConfig:
     parameters: dict[str, int | float | str | bool]
     risk_runs: dict[str, RiskRunConfig]
     concentration_curves: dict[str, ConcentrationCurveConfig]
+    cards: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+    def selected_cards(self, section: str, available: Iterable[str]) -> tuple[str, ...]:
+        available = tuple(available)
+        selected = self.cards.get(section, available)
+        unknown = set(selected).difference(available)
+        if unknown:
+            raise ValueError(
+                f"Unknown cards in [cards].{section}: {', '.join(sorted(unknown))}. "
+                f"Available cards: {', '.join(available)}."
+            )
+        return tuple(card for card in available if card in selected)
 
     def source(self, name: str) -> Path:
         try:
@@ -384,6 +399,21 @@ def load_country_config(
             },
         )
 
+    cards_table = raw.get("cards", {})
+    if not isinstance(cards_table, dict):
+        raise ValueError("[cards] must be a TOML table")
+    cards = {}
+    for section, selected in cards_table.items():
+        if section not in _CARD_SECTIONS:
+            raise ValueError(f"Unknown section in [cards]: {section!r}")
+        if not isinstance(selected, list) or any(
+            not isinstance(card, str) or not card.strip() for card in selected
+        ):
+            raise ValueError(f"[cards].{section} must be an array of card names")
+        if len(set(selected)) != len(selected):
+            raise ValueError(f"[cards].{section} contains duplicate card names")
+        cards[section] = tuple(selected)
+
     concentration_curves = (
         _load_concentration_curve_registry(root, raw) if load_curves else {}
     )
@@ -400,6 +430,7 @@ def load_country_config(
         parameters=parameters,
         risk_runs=risk_runs,
         concentration_curves=concentration_curves,
+        cards=cards,
     )
 
 
@@ -674,49 +705,53 @@ def read_gpkg_attributes(
         raise FileNotFoundError(f"GeoPackage not found: {gpkg_path}")
 
     quoted_layer = quote_sqlite_identifier(layer_name)
-    with sqlite3.connect(gpkg_path) as connection:
-        layer_exists = connection.execute(
-            """
-            SELECT 1
-            FROM gpkg_contents
-            WHERE table_name = ?
-            """,
-            [layer_name],
-        ).fetchone()
-        if layer_exists is None:
-            raise ValueError(
-                f"Layer {layer_name!r} not found in GeoPackage: {gpkg_path}"
-            )
-
-        geometry_columns = {
-            row[0]
-            for row in connection.execute(
+    try:
+        with sqlite3.connect(gpkg_path) as connection:
+            layer_exists = connection.execute(
                 """
-                SELECT column_name
-                FROM gpkg_geometry_columns
+                SELECT 1
+                FROM gpkg_contents
                 WHERE table_name = ?
                 """,
                 [layer_name],
-            )
-        }
-        column_info = connection.execute(
-            f"PRAGMA table_info({quoted_layer})"
-        ).fetchall()
-        attribute_columns = [
-            row[1]
-            for row in column_info
-            if row[1] not in geometry_columns and row[1] != "fid"
-        ]
-        if not attribute_columns:
-            raise ValueError(
-                f"Layer {layer_name!r} contains no attribute columns"
-            )
+            ).fetchone()
+            if layer_exists is None:
+                raise ValueError(
+                    f"Layer {layer_name!r} not found in GeoPackage: {gpkg_path}"
+                )
 
-        select_columns = ", ".join(
-            quote_sqlite_identifier(column) for column in attribute_columns
-        )
-        query = f"SELECT {select_columns} FROM {quoted_layer}"
-        return pd.read_sql_query(query, connection)
+            geometry_columns = {
+                row[0]
+                for row in connection.execute(
+                    """
+                    SELECT column_name
+                    FROM gpkg_geometry_columns
+                    WHERE table_name = ?
+                    """,
+                    [layer_name],
+                )
+            }
+            column_info = connection.execute(
+                f"PRAGMA table_info({quoted_layer})"
+            ).fetchall()
+            attribute_columns = [
+                row[1]
+                for row in column_info
+                if row[1] not in geometry_columns and row[1] != "fid"
+            ]
+            if not attribute_columns:
+                raise ValueError(
+                    f"Layer {layer_name!r} contains no attribute columns"
+                )
+
+            select_columns = ", ".join(
+                quote_sqlite_identifier(column) for column in attribute_columns
+            )
+            query = f"SELECT {select_columns} FROM {quoted_layer}"
+            return pd.read_sql_query(query, connection)
+    except (sqlite3.Error, pd.errors.DatabaseError) as error:
+        error.add_note(f"Reading GeoPackage {gpkg_path}, layer {layer_name!r}.")
+        raise
 
 
 def read_admin_summary_csv(
@@ -728,7 +763,11 @@ def read_admin_summary_csv(
     if not csv_path.is_file():
         raise FileNotFoundError(f"Administrative summary not found: {csv_path}")
 
-    frame = pd.read_csv(csv_path, dtype={adm_id_column: "string"})
+    try:
+        frame = pd.read_csv(csv_path, dtype={adm_id_column: "string"})
+    except (pd.errors.ParserError, UnicodeError) as error:
+        error.add_note(f"Reading administrative summary {csv_path}.")
+        raise
     required_columns = {adm_id_column, *value_columns}
     validate_columns(frame, required_columns, csv_path.name)
     validate_unique(frame, [adm_id_column], csv_path.name)
@@ -1167,6 +1206,60 @@ def validate_card_output(
 
     unique_key = ["country_iso3", "admin_level", "adm_id", "section", "card", *dimensions]
     validate_unique(frame, unique_key, "Card output")
+
+
+def describe_card_selection(
+    config: PipelineConfig,
+    section: str,
+    available: Iterable[str],
+) -> None:
+    """Show the notebook's plan and flag previous outputs for skipped cards."""
+    available = tuple(available)
+    selected = config.selected_cards(section, available)
+    skipped = [card for card in available if card not in selected]
+    print(f"Selected cards: {', '.join(selected) or 'none'}")
+    if skipped:
+        print(f"Skipped cards: {', '.join(skipped)}")
+    for card in skipped:
+        path = config.card_output_path(section, card)
+        if path.is_file():
+            print(f"Previous output for skipped card {card}: {path}")
+
+
+def build_selected_cards(
+    config: PipelineConfig,
+    section: str,
+    dimensions: Mapping[str, tuple[str, ...]],
+    row_builders: Mapping[str, Callable[[gpd.GeoDataFrame], pd.DataFrame]],
+    admin_regions: gpd.GeoDataFrame | None,
+    *,
+    optional_dimensions: Mapping[str, tuple[str, ...]] | None = None,
+    sort_columns: Mapping[str, tuple[str, ...]] | None = None,
+    allow_empty_value_cards: frozenset[str] = frozenset(),
+) -> dict[str, pd.DataFrame]:
+    """Load and format inputs for the selected cards in their standard order."""
+    selected = config.selected_cards(section, dimensions)
+    if not selected:
+        return {}
+    if admin_regions is None:
+        admin_regions = load_admin_boundaries(config)
+
+    optional_dimensions = optional_dimensions or {}
+    sort_columns = sort_columns or {}
+    cards = {}
+    for card in selected:
+        try:
+            rows = row_builders[card](admin_regions)
+            cards[card] = finalize_card_output(
+                rows, config, admin_regions, section, card, dimensions[card],
+                sort_columns=sort_columns.get(card, ("_row_order",)),
+                optional_dimensions=optional_dimensions.get(card, ()),
+                allow_empty_values=card in allow_empty_value_cards,
+            )
+        except Exception as error:
+            error.add_note(f"While building the {section}/{card} card for {config.country.iso3}.")
+            raise
+    return cards
 
 
 def write_card_outputs(

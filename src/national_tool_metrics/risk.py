@@ -5,10 +5,9 @@ import numpy as np
 import pandas as pd
 
 from .utils import (
-    finalize_card_output,
+    build_selected_cards,
     metric_rows,
     line_ead_by_admin,
-    load_admin_boundaries,
     PipelineConfig,
     read_gpkg_attributes,
     require_reconciliation,
@@ -596,51 +595,34 @@ def _direct_damage_rows(river: pd.DataFrame, cyclone: pd.DataFrame) -> pd.DataFr
     return pd.concat([river_rows, cyclone_rows], ignore_index=True)
 
 
-def assemble_risk_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    population_metrics: pd.DataFrame,
-    capital_stock_metrics: pd.DataFrame,
-    river_direct_metrics: pd.DataFrame,
-    cyclone_direct_metrics: pd.DataFrame,
-) -> dict[str, pd.DataFrame]:
-    """Reshape the three supported Risk calculations into card tables."""
-    cards = {
-        POPULATION_CARD: _population_risk_rows(population_metrics),
-        CAPITAL_STOCK_CARD: _capital_stock_risk_rows(capital_stock_metrics),
-        DIRECT_DAMAGE_CARD: _direct_damage_rows(river_direct_metrics, cyclone_direct_metrics),
-    }
-    return {
-        card: finalize_card_output(
-            rows, config, admin_regions, "risk", card, RISK_CARD_DIMENSIONS[card],
-            optional_dimensions=RISK_CARD_OPTIONAL_DIMENSIONS[card],
-        )
-        for card, rows in cards.items()
-    }
-
-
 def build_risk_card_metrics(
     config: PipelineConfig,
     admin_regions: gpd.GeoDataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Calculate and build the three supported downloadable Risk cards."""
-    if admin_regions is None:
-        admin_regions = load_admin_boundaries(config)
-    river_run = config.risk_run("river_flood_jrc_baseline")
-    cyclone_run = config.risk_run("tropical_cyclone_storm_baseline_2020")
-    return assemble_risk_card_metrics(
-        config,
+    """Build the selected downloadable Risk card tables."""
+    def direct_damage(regions: gpd.GeoDataFrame) -> pd.DataFrame:
+        river = config.risk_run("river_flood_jrc_baseline")
+        cyclone = config.risk_run("tropical_cyclone_storm_baseline_2020")
+        for run, required in ((river, {"road_damage", "rail_damage"}), (cyclone, {"power_damage"})):
+            missing = required.difference(run.inputs)
+            if missing:
+                raise ValueError(f"Missing configured inputs for {run.name}: {', '.join(sorted(missing))}")
+        return _direct_damage_rows(
+            build_direct_network_risk_metrics(config, regions, river),
+            build_direct_network_risk_metrics(config, regions, cyclone),
+        )
+
+    return build_selected_cards(
+        config, "risk", RISK_CARD_DIMENSIONS,
+        {
+            POPULATION_CARD: lambda regions: _population_risk_rows(
+                build_population_risk_metrics(config, regions, config.risk_run("river_flood_jrc_baseline"))
+            ),
+            CAPITAL_STOCK_CARD: lambda regions: _capital_stock_risk_rows(
+                build_capital_stock_risk_metrics(config, regions, config.risk_run("river_flood_jrc_baseline"))
+            ),
+            DIRECT_DAMAGE_CARD: direct_damage,
+        },
         admin_regions,
-        build_population_risk_metrics(config, admin_regions, river_run),
-        build_capital_stock_risk_metrics(config, admin_regions, river_run),
-        build_direct_network_risk_metrics(
-            config,
-            admin_regions,
-            river_run,
-        ),
-        build_direct_network_risk_metrics(
-            config,
-            admin_regions,
-            cyclone_run,
-        ),
+        optional_dimensions=RISK_CARD_OPTIONAL_DIMENSIONS,
     )

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from .utils import (
-    finalize_card_output,
+    build_selected_cards,
     metric_rows,
     load_admin_boundaries,
     PipelineConfig,
@@ -374,48 +374,30 @@ def _outcome_rows(metrics: pd.DataFrame, card: str) -> pd.DataFrame:
     )
 
 
-def assemble_adaptation_outcomes_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    dry_proofing_metrics: pd.DataFrame,
-    relocation_metrics: pd.DataFrame | None = None,
-    flood_protection_metrics: pd.DataFrame | None = None,
-) -> dict[str, pd.DataFrame]:
-    """Reshape Adaptation Outcomes calculations into downloadable cards."""
-    cards = {}
-    for card, metrics, scenario_order in (
-        (DRY_PROOFING_CARD, dry_proofing_metrics, ()),
-        (RELOCATION_CARD, relocation_metrics, ("urbanisation_threshold_code",)),
-        (FLOOD_PROTECTION_CARD, flood_protection_metrics,
-         ("urbanisation_threshold_code", "design_return_period_years")),
-    ):
-        if metrics is not None:
-            cards[card] = finalize_card_output(
-                _outcome_rows(metrics, card), config, admin_regions, "adaptation_outcomes", card,
-                ADAPTATION_OUTCOMES_CARD_DIMENSIONS[card],
-                sort_columns=(*scenario_order, "_row_order"),
-                optional_dimensions=ADAPTATION_OUTCOMES_CARD_OPTIONAL_DIMENSIONS[card],
-            )
-    return cards
-
-
 def build_adaptation_outcomes_card_metrics(
     config: PipelineConfig,
     admin_regions: gpd.GeoDataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Calculate and build the available Adaptation Outcomes cards."""
-    if admin_regions is None:
-        admin_regions = load_admin_boundaries(config)
-    dry_proofing_metrics = build_dry_proofing_metrics(config, admin_regions)
-    relocation_metrics = build_relocation_metrics(config, admin_regions)
-    flood_protection_metrics = build_flood_protection_metrics(
-        config,
+    """Build the selected downloadable Adaptation Outcomes card tables."""
+    return build_selected_cards(
+        config, "adaptation_outcomes", ADAPTATION_OUTCOMES_CARD_DIMENSIONS,
+        {
+            DRY_PROOFING_CARD: lambda regions: _outcome_rows(
+                build_dry_proofing_metrics(config, regions), DRY_PROOFING_CARD
+            ),
+            RELOCATION_CARD: lambda regions: _outcome_rows(
+                build_relocation_metrics(config, regions), RELOCATION_CARD
+            ),
+            FLOOD_PROTECTION_CARD: lambda regions: _outcome_rows(
+                build_flood_protection_metrics(config, regions), FLOOD_PROTECTION_CARD
+            ),
+        },
         admin_regions,
-    )
-    return assemble_adaptation_outcomes_card_metrics(
-        config,
-        admin_regions,
-        dry_proofing_metrics,
-        relocation_metrics,
-        flood_protection_metrics,
+        optional_dimensions=ADAPTATION_OUTCOMES_CARD_OPTIONAL_DIMENSIONS,
+        sort_columns={
+            RELOCATION_CARD: ("urbanisation_threshold_code", "_row_order"),
+            FLOOD_PROTECTION_CARD: (
+                "urbanisation_threshold_code", "design_return_period_years", "_row_order",
+            ),
+        },
     )

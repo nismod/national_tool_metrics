@@ -63,6 +63,29 @@ country file. [Concentration curve registry](docs/concentration_curves.md)
 
 Set `COUNTRY = "TZA"` in the notebook and run it.
 
+### Run only available cards
+
+Add a `[cards]` table to the country TOML when a section has data for only
+some cards. For example, this runs River Flooding and Relative Wealth Index
+when you open their respective notebooks.
+
+```toml
+[cards]
+hazard = ["river_flooding"]
+vulnerability = ["relative_wealth_index"]
+```
+
+Omit a section from `[cards]` to build all its cards. Use an empty list, such
+as `adaptation_outcomes = []`, to skip an entire section. Use the card names
+from the CSV filenames in [the card contracts](docs/card_csv_contracts.md).
+Each selected card needs its required inputs and its full set of return
+periods or scenarios. Concentration Curves uses its own registry.
+
+The notebook lists the selected and skipped cards before calculating metrics.
+It reports any CSVs from earlier runs for skipped cards. Those files remain
+on disk, so use the paths printed by the export cell to identify this run's
+results.
+
 Raw datasets, boundary files, and generated CSVs are kept out of Git.
 
 ## Outputs

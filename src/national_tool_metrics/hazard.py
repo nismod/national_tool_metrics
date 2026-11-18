@@ -17,9 +17,8 @@ from shapely.geometry import box, mapping
 
 from .utils import (
     clipped_raster_window,
-    finalize_card_output,
+    build_selected_cards,
     metric_rows,
-    load_admin_boundaries,
     PipelineConfig,
     validate_spatial_admin_regions,
     raster_window_cell_areas_km2,
@@ -509,14 +508,12 @@ def build_hazard_card_metrics(
     config: PipelineConfig,
     admin_regions: gpd.GeoDataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Build the two tidy downloadable Hazard card tables."""
-    if admin_regions is None:
-        admin_regions = load_admin_boundaries(config)
-    cards = {
-        RIVER_FLOOD_CARD: _river_flood_rows(build_river_flood_metrics(config, admin_regions)),
-        TROPICAL_CYCLONE_CARD: _cyclone_rows(build_tropical_cyclone_metrics(config, admin_regions)),
-    }
-    return {
-        card: finalize_card_output(rows, config, admin_regions, "hazard", card, HAZARD_CARD_DIMENSIONS[card])
-        for card, rows in cards.items()
-    }
+    """Build the selected downloadable Hazard card tables."""
+    return build_selected_cards(
+        config, "hazard", HAZARD_CARD_DIMENSIONS,
+        {
+            RIVER_FLOOD_CARD: lambda regions: _river_flood_rows(build_river_flood_metrics(config, regions)),
+            TROPICAL_CYCLONE_CARD: lambda regions: _cyclone_rows(build_tropical_cyclone_metrics(config, regions)),
+        },
+        admin_regions,
+    )

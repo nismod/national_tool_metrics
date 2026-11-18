@@ -396,7 +396,9 @@ results/<ISO3>/concentration_curves/<ISO3>_concentration_curves.csv
    administrative level. Override paths there when they differ from
    `config/defaults.toml`.
 2. Add the required boundary layer under `data/boundaries/<ISO3>/`.
-3. Populate each implemented section's input contract for the selected level.
+3. Stage the inputs for the cards you plan to run at the selected level. Use
+   the optional [`[cards]` setting](../README.md#run-only-available-cards) to
+   limit a section to those cards.
 4. Record source provenance in `docs/data_sources.md`.
 5. Set `COUNTRY` in each applicable notebook and choose **Run All**.
 6. Check row coverage, metric names, units, and reconciliation rules before
