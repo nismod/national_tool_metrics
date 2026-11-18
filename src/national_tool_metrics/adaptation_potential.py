@@ -19,15 +19,13 @@ from rasterstats import zonal_stats
 from shapely.geometry import GeometryCollection, LineString, MultiLineString
 from shapely.geometry.base import BaseGeometry
 
-from ..boundaries import load_admin_boundaries
-from ..config import PipelineConfig
-from ..outputs import (
-    CARD_IDENTIFIER_COLUMNS,
-    build_card_identifier_frame,
-    build_identifier_frame,
-    merge_metric_tables,
-    validate_card_output,
-    validate_section_output,
+from .utils import (
+    clipped_raster_window,
+    finalize_card_output,
+    metric_rows,
+    load_admin_boundaries,
+    PipelineConfig,
+    validate_spatial_admin_regions,
 )
 
 
@@ -154,38 +152,6 @@ def _require_raster(directory: Path, filename: str) -> Path:
     return path
 
 
-def _validate_admin_regions(admin_regions: gpd.GeoDataFrame) -> None:
-    if admin_regions.crs is None:
-        raise ValueError("Administrative regions must have a CRS")
-    if admin_regions.empty:
-        raise ValueError("Administrative regions contain no rows")
-    if admin_regions["adm_id"].duplicated().any():
-        raise ValueError("Administrative regions contain duplicate IDs")
-    if admin_regions.geometry.isna().any() or admin_regions.geometry.is_empty.any():
-        raise ValueError("Administrative regions contain empty geometries")
-
-
-def _clipped_window(source: rasterio.io.DatasetReader, bounds: tuple[float, ...]) -> Window:
-    if source.transform.b != 0 or source.transform.d != 0:
-        raise ValueError(f"Rotated rasters are not supported: {source.name}")
-    left, bottom, right, top = bounds
-    inverse = ~source.transform
-    first_col, first_row = inverse * (left, top)
-    last_col, last_row = inverse * (right, bottom)
-    col_start = max(0, floor(min(first_col, last_col)))
-    row_start = max(0, floor(min(first_row, last_row)))
-    col_stop = min(source.width, ceil(max(first_col, last_col)))
-    row_stop = min(source.height, ceil(max(first_row, last_row)))
-    if col_stop <= col_start or row_stop <= row_start:
-        raise ValueError(f"Administrative boundaries do not overlap {source.name}")
-    return Window(
-        col_off=col_start,
-        row_off=row_start,
-        width=col_stop - col_start,
-        height=row_stop - row_start,
-    )
-
-
 def _buffered_admin_bounds(
     admin_regions: gpd.GeoDataFrame,
     raster_crs: CRS,
@@ -209,7 +175,7 @@ def _grid_from_source(
 ) -> _RasterGrid:
     if source.crs is None:
         raise ValueError(f"Raster has no CRS: {source.name}")
-    window = _clipped_window(
+    window = clipped_raster_window(
         source,
         _buffered_admin_bounds(admin_regions, source.crs, buffer_m),
     )
@@ -379,32 +345,12 @@ def _counts_by_admin(
     )[1:].astype("float64")
 
 
-def _add_area_metrics(
-    metrics: pd.DataFrame,
-    assignment: _OpportunityAssignment,
-    prefix: str,
-    nominal_cell_area_ha: float,
-    class_names: dict[int, str] | None = None,
-) -> None:
-    area_per_cell_km2 = nominal_cell_area_ha / 100
-    admin_count = len(metrics)
-    metrics[f"{prefix}_total_km2"] = (
-        _counts_by_admin(assignment, admin_count) * area_per_cell_km2
-    )
-    for class_value, class_name in (class_names or {}).items():
-        metrics[f"{prefix}_{class_name}_km2"] = (
-            _counts_by_admin(assignment, admin_count, class_value)
-            * area_per_cell_km2
-        )
-
-
 def _aggregate_continuous_values(
     values: np.ndarray,
     nodata: float | None,
     assignment: _OpportunityAssignment,
     admin_count: int,
-    label: str,
-    operation: str,
+    mean: bool,
     nominal_cell_area_ha: float,
     class_value: int | None = None,
 ) -> np.ndarray:
@@ -420,80 +366,13 @@ def _aggregate_continuous_values(
     valid &= selected >= 0
     codes = assignment.admin_codes[assignment_mask][valid]
     selected = selected[valid]
-    if operation == "total":
+    if not mean:
         return np.bincount(
-            codes,
-            weights=selected * nominal_cell_area_ha,
-            minlength=admin_count + 1,
+            codes, weights=selected * nominal_cell_area_ha, minlength=admin_count + 1,
         )[1:]
-    if operation == "mean":
-        totals = np.bincount(codes, weights=selected, minlength=admin_count + 1)[1:]
-        counts = np.bincount(codes, minlength=admin_count + 1)[1:]
-        return np.divide(
-            totals,
-            counts,
-            out=np.zeros(admin_count, dtype="float64"),
-            where=counts > 0,
-        )
-    raise ValueError(f"Unknown aggregation for {label}: {operation}")
-
-
-def _add_continuous_metric(
-    metrics: pd.DataFrame,
-    values: np.ndarray,
-    nodata: float | None,
-    assignment: _OpportunityAssignment,
-    metric_name: str,
-    operation: str,
-    nominal_cell_area_ha: float,
-    class_value: int | None = None,
-) -> None:
-    metrics[metric_name] = _aggregate_continuous_values(
-        values,
-        nodata,
-        assignment,
-        len(metrics),
-        metric_name,
-        operation,
-        nominal_cell_area_ha,
-        class_value,
-    )
-
-
-def _add_raster_metrics(
-    metrics: pd.DataFrame,
-    path: Path,
-    grid: _RasterGrid,
-    assignments: tuple[_OpportunityAssignment, ...],
-    metric_suffix: str,
-    operation: str,
-    nominal_cell_area_ha: float,
-    class_names_by_assignment: dict[str, dict[int, str]] | None = None,
-) -> None:
-    """Read one Kenya window and apply it to one or more opportunity masks."""
-    values, nodata = _read_window(path, grid)
-    for assignment in assignments:
-        _add_continuous_metric(
-            metrics,
-            values,
-            nodata,
-            assignment,
-            f"nbs_{assignment.name}_{metric_suffix}",
-            operation,
-            nominal_cell_area_ha,
-        )
-        class_names = (class_names_by_assignment or {}).get(assignment.name, {})
-        for class_value, class_name in class_names.items():
-            _add_continuous_metric(
-                metrics,
-                values,
-                nodata,
-                assignment,
-                f"nbs_{assignment.name}_{class_name}_{metric_suffix}",
-                operation,
-                nominal_cell_area_ha,
-                class_value,
-            )
+    totals = np.bincount(codes, weights=selected, minlength=admin_count + 1)[1:]
+    counts = np.bincount(codes, minlength=admin_count + 1)[1:]
+    return np.divide(totals, counts, out=np.zeros(admin_count), where=counts > 0)
 
 
 def _validate_nbs_category_totals(metrics: pd.DataFrame) -> None:
@@ -728,7 +607,7 @@ def build_flopros_metrics(
     admin_regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     """Calculate the modal positive FLOPROS return period in each region."""
-    _validate_admin_regions(admin_regions)
+    validate_spatial_admin_regions(admin_regions)
     filename = str(
         config.parameters.get(
             "flopros_filename",
@@ -774,7 +653,7 @@ def build_nbs_metrics(
     admin_regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     """Summarize opportunity area, cost, carbon, and biodiversity by region."""
-    _validate_admin_regions(admin_regions)
+    validate_spatial_admin_regions(admin_regions)
     directory = config.source("nature_based_solutions_dir")
     nominal_cell_area_ha = float(config.parameters["nbs_nominal_cell_area_ha"])
     max_distance_m = float(config.parameters["max_coastal_assignment_distance_m"])
@@ -820,101 +699,28 @@ def build_nbs_metrics(
     )
 
     metrics = admin_regions[["adm_id"]].copy()
-    _add_area_metrics(
-        metrics,
-        slope,
-        "nbs_slope_vegetation",
-        nominal_cell_area_ha,
-        SLOPE_CLASS_NAMES,
-    )
-    _add_area_metrics(
-        metrics,
-        mangrove,
-        "nbs_mangrove",
-        nominal_cell_area_ha,
-        MANGROVE_CLASS_NAMES,
-    )
-    _add_area_metrics(
-        metrics,
-        river,
-        "nbs_river_catchment_restoration",
-        nominal_cell_area_ha,
-    )
+    classes = {slope.name: SLOPE_CLASS_NAMES, mangrove.name: MANGROVE_CLASS_NAMES, river.name: {}}
+    for assignment in (slope, mangrove, river):
+        for class_value, category in ((None, "total"), *classes[assignment.name].items()):
+            cells = _counts_by_admin(assignment, len(metrics), class_value)
+            metrics[f"nbs_{assignment.name}_{category}_km2"] = cells * (nominal_cell_area_ha / 100)
 
-    _add_raster_metrics(
-        metrics,
-        _require_raster(directory, PLANTING_COST_FILENAME),
-        grid,
-        (slope, river),
-        "planting_cost_total_usd_2020",
-        "total",
-        nominal_cell_area_ha,
-        {
-            "slope_vegetation": SLOPE_CLASS_NAMES,
-        },
+    raster_specs = (
+        (PLANTING_COST_FILENAME, (slope, river), "planting_cost_total_usd_2020", False),
+        (REGENERATION_COST_FILENAME, (slope, river), "regeneration_cost_total_usd_2020", False),
+        (MANGROVE_PLANTING_COST_FILENAME, (mangrove,), "planting_cost_total_usd_2020", False),
+        (MANGROVE_REGENERATION_COST_FILENAME, (mangrove,), "regeneration_cost_total_usd_2020", False),
+        (CARBON_FILENAME, (slope, mangrove, river), "carbon_benefit_total_tonnes", False),
+        (BIODIVERSITY_FILENAME, (slope, mangrove, river), "biodiversity_benefit_mean", True),
     )
-    _add_raster_metrics(
-        metrics,
-        _require_raster(directory, REGENERATION_COST_FILENAME),
-        grid,
-        (slope, river),
-        "regeneration_cost_total_usd_2020",
-        "total",
-        nominal_cell_area_ha,
-        {
-            "slope_vegetation": SLOPE_CLASS_NAMES,
-        },
-    )
-    _add_raster_metrics(
-        metrics,
-        _require_raster(directory, MANGROVE_PLANTING_COST_FILENAME),
-        grid,
-        (mangrove,),
-        "planting_cost_total_usd_2020",
-        "total",
-        nominal_cell_area_ha,
-        {
-            "mangrove": MANGROVE_CLASS_NAMES,
-        },
-    )
-    _add_raster_metrics(
-        metrics,
-        _require_raster(directory, MANGROVE_REGENERATION_COST_FILENAME),
-        grid,
-        (mangrove,),
-        "regeneration_cost_total_usd_2020",
-        "total",
-        nominal_cell_area_ha,
-        {
-            "mangrove": MANGROVE_CLASS_NAMES,
-        },
-    )
-    _add_raster_metrics(
-        metrics,
-        _require_raster(directory, CARBON_FILENAME),
-        grid,
-        (slope, mangrove, river),
-        "carbon_benefit_total_tonnes",
-        "total",
-        nominal_cell_area_ha,
-        {
-            "slope_vegetation": SLOPE_CLASS_NAMES,
-            "mangrove": MANGROVE_CLASS_NAMES,
-        },
-    )
-    _add_raster_metrics(
-        metrics,
-        _require_raster(directory, BIODIVERSITY_FILENAME),
-        grid,
-        (slope, mangrove, river),
-        "biodiversity_benefit_mean",
-        "mean",
-        nominal_cell_area_ha,
-        {
-            "slope_vegetation": SLOPE_CLASS_NAMES,
-            "mangrove": MANGROVE_CLASS_NAMES,
-        },
-    )
+    for filename, assignments, suffix, mean in raster_specs:
+        values, nodata = _read_window(_require_raster(directory, filename), grid)
+        for assignment in assignments:
+            for class_value, category in ((None, ""), *classes[assignment.name].items()):
+                prefix = f"nbs_{assignment.name}_{category}" if category else f"nbs_{assignment.name}"
+                metrics[f"{prefix}_{suffix}"] = _aggregate_continuous_values(
+                    values, nodata, assignment, len(metrics), mean, nominal_cell_area_ha, class_value,
+                )
 
     _validate_nbs_category_totals(metrics)
     return metrics
@@ -925,7 +731,7 @@ def build_river_network_context_metrics(
     admin_regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     """Calculate river length by administrative region and urbanisation type."""
-    _validate_admin_regions(admin_regions)
+    validate_spatial_admin_regions(admin_regions)
     directory = config.source("adaptation_potential_dir")
     iso3 = config.country.iso3
     network_path = directory / f"{iso3}_river_network.gpkg"
@@ -1051,49 +857,6 @@ def build_river_network_context_metrics(
     return metrics
 
 
-def _finalize_adaptation_card_output(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    card: str,
-    long_metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    dimensions = ADAPTATION_POTENTIAL_CARD_DIMENSIONS[card]
-    identifiers = build_card_identifier_frame(
-        admin_regions,
-        config,
-        section="adaptation_potential",
-        card=card,
-    )
-    admin_order = {
-        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
-    }
-    output = identifiers.merge(
-        long_metrics,
-        on="adm_id",
-        how="left",
-        validate="one_to_many",
-    )
-    output["_admin_order"] = output["adm_id"].map(admin_order)
-    output = output.sort_values(
-        ["_admin_order", "_row_order"],
-        kind="stable",
-    ).drop(columns=["_admin_order", "_row_order"])
-    output["value"] = output["value"].round(3)
-    output = output[
-        [*CARD_IDENTIFIER_COLUMNS, *dimensions, "value"]
-    ].reset_index(drop=True)
-    validate_card_output(
-        output,
-        "adaptation_potential",
-        card,
-        dimensions,
-        optional_dimension_columns=(
-            ADAPTATION_POTENTIAL_CARD_OPTIONAL_DIMENSIONS[card]
-        ),
-    )
-    return output
-
-
 def _nbs_source_column(
     opportunity: str,
     category: str,
@@ -1121,128 +884,20 @@ def _nbs_source_column(
     raise ValueError(f"Unsupported nature-based solution metric: {metric}")
 
 
-def _format_categorized_nbs_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
+def _nbs_rows(
     metrics: pd.DataFrame,
-    *,
-    card: str,
     opportunity: str,
-    category_column: str,
-    categories: tuple[str, ...],
+    categories: tuple[str, ...] = ("total",),
+    category_column: str | None = None,
 ) -> pd.DataFrame:
-    parts: list[pd.DataFrame] = []
-    for category_order, category in enumerate(categories):
-        for metric_order, (
-            metric,
-            implementation_approach,
-            unit,
-        ) in enumerate(NBS_METRIC_ROWS):
-            source_column = _nbs_source_column(
-                opportunity,
-                category,
-                metric,
-                implementation_approach,
-            )
-            part = metrics[["adm_id", source_column]].rename(
-                columns={source_column: "value"}
-            )
-            part["adaptation_subsection"] = "nature_based_solutions"
-            part[category_column] = category
-            part["metric"] = metric
-            part["implementation_approach"] = implementation_approach
-            part["unit"] = unit
-            part["_row_order"] = (
-                category_order * len(NBS_METRIC_ROWS) + metric_order
-            )
-            parts.append(part)
-    return _finalize_adaptation_card_output(
-        config,
-        admin_regions,
-        card,
-        pd.concat(parts, ignore_index=True),
-    )
-
-
-def _format_river_catchment_restoration_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    parts: list[pd.DataFrame] = []
-    for row_order, (
-        metric,
-        implementation_approach,
-        unit,
-    ) in enumerate(NBS_METRIC_ROWS):
-        source_column = _nbs_source_column(
-            "river_catchment_restoration",
-            "total",
-            metric,
-            implementation_approach,
-        )
-        part = metrics[["adm_id", source_column]].rename(
-            columns={source_column: "value"}
-        )
-        part["adaptation_subsection"] = "nature_based_solutions"
-        part["metric"] = metric
-        part["implementation_approach"] = implementation_approach
-        part["unit"] = unit
-        part["_row_order"] = row_order
-        parts.append(part)
-    return _finalize_adaptation_card_output(
-        config,
-        admin_regions,
-        RIVER_CATCHMENT_RESTORATION_CARD,
-        pd.concat(parts, ignore_index=True),
-    )
-
-
-def _format_existing_flood_protection_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    long_metrics = metrics[
-        ["adm_id", "flopros_protection_standard_mode_rp"]
-    ].rename(columns={"flopros_protection_standard_mode_rp": "value"})
-    long_metrics["adaptation_subsection"] = "flood_protection"
-    long_metrics["metric"] = "protection_standard_mode"
-    long_metrics["unit"] = "return_period_years"
-    long_metrics["_row_order"] = 0
-    return _finalize_adaptation_card_output(
-        config,
-        admin_regions,
-        EXISTING_FLOOD_PROTECTION_CARD,
-        long_metrics,
-    )
-
-
-def _format_river_network_context_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    parts: list[pd.DataFrame] = []
-    for row_order, urbanisation_class in enumerate(
-        ("total", "rural", "town", "city")
-    ):
-        source_column = f"river_length_{urbanisation_class}_km"
-        part = metrics[["adm_id", source_column]].rename(
-            columns={source_column: "value"}
-        )
-        part["adaptation_subsection"] = "flood_protection"
-        part["urbanisation_class"] = urbanisation_class
-        part["metric"] = "river_length"
-        part["unit"] = "km"
-        part["_row_order"] = row_order
-        parts.append(part)
-    return _finalize_adaptation_card_output(
-        config,
-        admin_regions,
-        RIVER_NETWORK_CONTEXT_CARD,
-        pd.concat(parts, ignore_index=True),
-    )
+    rows = []
+    for category in categories:
+        for metric, approach, unit in NBS_METRIC_ROWS:
+            dimensions = dict(metric=metric, implementation_approach=approach, unit=unit)
+            if category_column is not None:
+                dimensions[category_column] = category
+            rows.append((_nbs_source_column(opportunity, category, metric, approach), dimensions))
+    return metric_rows(metrics, rows, adaptation_subsection="nature_based_solutions")
 
 
 def assemble_adaptation_potential_card_metrics(
@@ -1253,51 +908,33 @@ def assemble_adaptation_potential_card_metrics(
     river_network_context_metrics: pd.DataFrame,
 ) -> dict[str, pd.DataFrame]:
     """Reshape Adaptation Potential calculations into five card tables."""
+    cards = {
+        SLOPE_VEGETATION_CARD: _nbs_rows(
+            nbs_metrics, "slope_vegetation", ("total", *SLOPE_CLASS_NAMES.values()), "land_use",
+        ),
+        MANGROVES_CARD: _nbs_rows(
+            nbs_metrics, "mangrove", ("total", *MANGROVE_CLASS_NAMES.values()), "shoreline_condition",
+        ),
+        RIVER_CATCHMENT_RESTORATION_CARD: _nbs_rows(nbs_metrics, "river_catchment_restoration"),
+        EXISTING_FLOOD_PROTECTION_CARD: metric_rows(
+            flopros_metrics, [("flopros_protection_standard_mode_rp", {})],
+            adaptation_subsection="flood_protection", metric="protection_standard_mode",
+            unit="return_period_years",
+        ),
+        RIVER_NETWORK_CONTEXT_CARD: metric_rows(
+            river_network_context_metrics,
+            [(f"river_length_{area}_km", dict(urbanisation_class=area))
+             for area in ("total", *URBANISATION_GROUPS)],
+            adaptation_subsection="flood_protection", metric="river_length", unit="km",
+        ),
+    }
     return {
-        SLOPE_VEGETATION_CARD: _format_categorized_nbs_card_metrics(
-            config,
-            admin_regions,
-            nbs_metrics,
-            card=SLOPE_VEGETATION_CARD,
-            opportunity="slope_vegetation",
-            category_column="land_use",
-            categories=("total", "other", "crops", "bare_ground"),
-        ),
-        MANGROVES_CARD: _format_categorized_nbs_card_metrics(
-            config,
-            admin_regions,
-            nbs_metrics,
-            card=MANGROVES_CARD,
-            opportunity="mangrove",
-            category_column="shoreline_condition",
-            categories=(
-                "total",
-                "accreting",
-                "static_moderate_retreat",
-                "fast_retreat",
-            ),
-        ),
-        RIVER_CATCHMENT_RESTORATION_CARD: (
-            _format_river_catchment_restoration_card_metrics(
-                config,
-                admin_regions,
-                nbs_metrics,
-            )
-        ),
-        EXISTING_FLOOD_PROTECTION_CARD: (
-            _format_existing_flood_protection_card_metrics(
-                config,
-                admin_regions,
-                flopros_metrics,
-            )
-        ),
-        RIVER_NETWORK_CONTEXT_CARD: (
-            _format_river_network_context_card_metrics(
-                config,
-                admin_regions,
-                river_network_context_metrics,
-            )
-        ),
+        card: finalize_card_output(
+            rows, config, admin_regions, "adaptation_potential", card,
+            ADAPTATION_POTENTIAL_CARD_DIMENSIONS[card],
+            optional_dimensions=ADAPTATION_POTENTIAL_CARD_OPTIONAL_DIMENSIONS[card],
+        )
+        for card, rows in cards.items()
     }
 
 
@@ -1309,44 +946,6 @@ def build_adaptation_potential_card_metrics(
     if admin_regions is None:
         admin_regions = load_admin_boundaries(config)
     return assemble_adaptation_potential_card_metrics(
-        config,
-        admin_regions,
-        build_flopros_metrics(config, admin_regions),
-        build_nbs_metrics(config, admin_regions),
-        build_river_network_context_metrics(config, admin_regions),
-    )
-
-
-def assemble_adaptation_potential_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    flopros_metrics: pd.DataFrame,
-    nbs_metrics: pd.DataFrame,
-    river_network_context_metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    """Combine the Adaptation Potential cards at the standard row grain."""
-    identifiers = build_identifier_frame(
-        admin_regions,
-        config,
-        section="adaptation_potential",
-    )
-    output = merge_metric_tables(
-        identifiers,
-        [flopros_metrics, nbs_metrics, river_network_context_metrics],
-        fill_missing_numeric=False,
-    )
-    validate_section_output(output, "adaptation_potential")
-    return output
-
-
-def build_adaptation_potential_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame | None = None,
-) -> pd.DataFrame:
-    """Build all Adaptation Potential metrics without writing a CSV."""
-    if admin_regions is None:
-        admin_regions = load_admin_boundaries(config)
-    return assemble_adaptation_potential_metrics(
         config,
         admin_regions,
         build_flopros_metrics(config, admin_regions),

@@ -29,7 +29,6 @@ data/
       vulnerability/
         relative_wealth_index/
         wealth_distribution/
-        accessibility/
 
       risk/
         socioeconomic/
@@ -43,6 +42,7 @@ data/
         social_infrastructure/
 
       adaptation_potential/
+      adaptation_outcomes/
 
       concentration_curves/
 
@@ -51,9 +51,8 @@ data/
       tropical_cyclone/
 ```
 
-Adaptation Analysis inputs will be added after that section's scope is agreed.
-The empty tropical-cyclone, indirect-risk, and social-infrastructure directories
-reserve canonical locations for planned inputs.
+The indirect-risk and social-infrastructure directories reserve canonical
+locations for future inputs.
 
 Concentration curves are country-level inputs shared by socioeconomic,
 adaptation-analysis, accessibility, and other tool areas. Their detailed input,
@@ -139,7 +138,9 @@ data/raw/<ISO3>/exposure/population/worldpop/
   <ISO3>_worldpop_female_15-49.tif
 ```
 
-The current Kenya population epoch is configured as 2025.
+The notebook sums each staged population raster within each administrative
+region. Record the population reference year of the staged rasters in
+`docs/data_sources.md`.
 
 ### Capital stock
 
@@ -150,13 +151,14 @@ data/raw/<ISO3>/exposure/capital_stock/
   <ISO3>_inf_capstock.tif
 ```
 
-These produce residential, non-residential, infrastructure, and total capital-
-stock metrics.
+The notebook sums each sector's raster within each administrative region and
+adds the three sector sums to get total capital stock.
 
 ### Networks and facilities
 
-Exposure reuses the canonical road, rail, and power files stored under Risk,
-avoiding duplicate geometry files. Government hospital and school counts use:
+Exposure clips road, rail, and power lines to administrative boundaries and
+sums their lengths. It reads the network files listed under Risk. Government
+hospital and school counts use:
 
 ```text
 data/raw/<ISO3>/exposure/facilities/
@@ -187,26 +189,10 @@ The corresponding layer contains `shapeID`, `shapeName`, and `q1_total` through
 `q5_total`. Quintile totals must be finite, nonnegative, and cover every selected
 administrative region.
 
-### Accessibility
-
-```text
-data/raw/<ISO3>/vulnerability/accessibility/
-  access_<facility>_gov_<mode>_summary_<ADMIN-LEVEL>_<group>__<ISO3>.csv
-```
-
-The workflow expects hospitals and schools; walking and motorized modes; and
-the total, female, male, infant, school-age, working-age, childbearing-age, and
-elderly population groups. This produces 32 baseline travel-time metrics.
-Blank baseline travel times are preserved as no-data when an administrative
-region falls outside the upstream routing calculation; they are not converted
-to zero-minute access. Observed travel times must be finite and nonnegative.
-
 ## Risk inputs
 
-Risk produces one row per administrative region. The currently configured runs
-are JRC baseline river flooding and STORM baseline tropical cyclone for epoch
-2020. Metrics are namespaced with `river_flood_jrc_baseline_` and
-`tropical_cyclone_storm_baseline_2020_`.
+The configured runs are JRC baseline river flooding and STORM baseline
+tropical cyclone for epoch 2020.
 
 ### Socioeconomic river-flood risk
 
@@ -339,8 +325,7 @@ at every administrative level.
 
 ## Results
 
-Download outputs are migrating from section-wide CSVs to one tidy CSV per
-sidebar card. Hazard writes:
+The section notebooks write one tidy CSV per sidebar card. Hazard writes:
 
 ```text
 results/<ISO3>/hazard/<ISO3>_<admin-level>_hazard_river_flooding_metrics.csv
@@ -398,16 +383,6 @@ results/<ISO3>/adaptation_outcomes/<ISO3>_<admin-level>_adaptation_outcomes_relo
 results/<ISO3>/adaptation_outcomes/<ISO3>_<admin-level>_adaptation_outcomes_flood_protection_metrics.csv
 ```
 
-Sections not yet migrated continue to write:
-
-```text
-results/<ISO3>/<section>/<ISO3>_<admin-level>_<section>_metrics.csv
-```
-
-These legacy-wide files have one row per administrative region and encode run
-dimensions in metric column names. The shared section writer remains in place
-until all applicable sections have approved card contracts.
-
 Concentration curves use a separate country-level output because their rows are
 cumulative population shares rather than administrative regions:
 
@@ -417,7 +392,9 @@ results/<ISO3>/concentration_curves/<ISO3>_concentration_curves.csv
 
 ## Adding another country or administrative level
 
-1. Add `config/countries/<ISO3>.toml` with canonical source paths.
+1. Add `config/countries/<ISO3>.toml` with the country code, name, and
+   administrative level. Override paths there when they differ from
+   `config/defaults.toml`.
 2. Add the required boundary layer under `data/boundaries/<ISO3>/`.
 3. Populate each implemented section's input contract for the selected level.
 4. Record source provenance in `docs/data_sources.md`.

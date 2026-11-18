@@ -1,0 +1,88 @@
+# Shared input layout and settings. {iso3} is the selected country code.
+
+[boundaries]
+id_field = "shapeID"
+name_field = "shapeName"
+
+[sources]
+worldpop_dir = "data/raw/{iso3}/exposure/population/worldpop"
+capital_stock_dir = "data/raw/{iso3}/exposure/capital_stock"
+facility_dir = "data/raw/{iso3}/exposure/facilities"
+road_network = "data/raw/{iso3}/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg"
+rail_network = "data/raw/{iso3}/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg"
+power_network = "data/raw/{iso3}/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg"
+rwi_dir = "data/raw/{iso3}/vulnerability/relative_wealth_index"
+wealth_distribution_dir = "data/raw/{iso3}/vulnerability/wealth_distribution"
+river_flood_hazard_dir = "data/raw/{iso3}/hazard/river_flooding"
+tropical_cyclone_hazard_dir = "data/raw/global/tropical_cyclone"
+adaptation_potential_dir = "data/raw/{iso3}/adaptation_potential"
+adaptation_outcomes_dir = "data/raw/{iso3}/adaptation_outcomes"
+nature_based_solutions_dir = "data/raw/global/nature_based_solutions"
+
+[parameters]
+worldpop_year = 2024
+max_coastal_assignment_distance_m = 5000
+max_urbanisation_nodata_distance_m = 5000
+# The source documentation describes these rasters as 9 arcseconds and uses
+# a nominal 250 m by 250 m restored cell for area and per-hectare benefits.
+nbs_nominal_cell_area_ha = 6.25
+
+[risk_runs.river_flood_jrc_baseline]
+
+[risk_runs.river_flood_jrc_baseline.inputs]
+# The workflow derives admin-level-specific filenames and layer names in these
+# directories, so adding ADM2 summaries will not require a second run bundle.
+population_risk_dir = "data/raw/{iso3}/risk/socioeconomic/river_flood"
+capital_stock_risk_dir = "data/raw/{iso3}/risk/socioeconomic/river_flood"
+road_damage = "data/raw/{iso3}/risk/infrastructure_networks/direct/river_flood/river-jrc_road_damages.gpkg"
+rail_damage = "data/raw/{iso3}/risk/infrastructure_networks/direct/river_flood/river-jrc_rail_damages.gpkg"
+
+[risk_runs.river_flood_jrc_baseline.columns]
+road_ead = "hazard-floodMapGL_EAD"
+rail_ead = "hazard-floodMapGL_EAD"
+
+[risk_runs.tropical_cyclone_storm_baseline_2020]
+
+[risk_runs.tropical_cyclone_storm_baseline_2020.inputs]
+power_damage = "data/raw/{iso3}/risk/infrastructure_networks/direct/tropical_cyclone/power.gpkg"
+
+[risk_runs.tropical_cyclone_storm_baseline_2020.columns]
+power_ead = "ead__cyclone__rcp_baseline__epoch_2020"
+
+[concentration_curves.flood_risk__jrc__baseline_protected]
+path = "data/raw/{iso3}/concentration_curves/{iso3}_jrc_protected_V-EXP_concentration_curve.csv"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description = "Cumulative share of baseline protection-adjusted JRC river-flood risk by cumulative population share."
+
+[concentration_curves.flood_risk__jrc__dry_proofing]
+path = "data/raw/{iso3}/concentration_curves/{iso3}_jrc_adapted_dp_V-EXP_concentration_curve.csv"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description = "Cumulative share of dry-proofing-adapted JRC river-flood risk by cumulative population share."
+
+[[concentration_curve_sets]]
+glob = "data/raw/{iso3}/concentration_curves/{iso3}_jrc_adapted_rl_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^{iso3}_jrc_adapted_rl_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__relocation_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of relocation-adapted JRC river-flood risk for scenario {duc} by cumulative population share."
+expected_count = 7
+
+[[concentration_curve_sets]]
+glob = "data/raw/{iso3}/concentration_curves/{iso3}_jrc_adapted_fp_rp*_duc*_V-EXP_concentration_curve.csv"
+filename_regex = '^{iso3}_jrc_adapted_fp_(?P<rp>rp\d+)_(?P<duc>duc\d+)_V-EXP_concentration_curve\.csv$'
+curve_id_template = "flood_risk__jrc__flood_protection_{rp}_{duc}"
+x_column = "frac_pop"
+y_column = "frac_flood"
+ranked_by = "relative_wealth"
+rank_direction = "lowest_to_highest"
+description_template = "Cumulative share of flood-protection-adapted JRC river-flood risk for scenarios {rp} and {duc} by cumulative population share."
+expected_count = 35

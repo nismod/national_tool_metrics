@@ -5,10 +5,8 @@ CSVs use tidy rows: adjustable card controls are columns, and the plotted
 number is stored in `value`. This makes the files straightforward to filter,
 pivot, chart, and combine without parsing parameter values from metric names.
 
-Sections are migrating to this contract one at a time. Hazard, Exposure, and
-the approved Relative Wealth Index and Wealth Distribution cards use the card
-contract now. Other outputs continue to use their existing contracts until
-their card schemas are agreed.
+All six section notebooks use this contract. Concentration curves use a
+country-level CSV with one column per registered curve. [Concentration-curve file contract](concentration_curves.md)
 
 ## Standard identifiers
 
@@ -118,7 +116,9 @@ demographic_group,display_mode,unit,value
 ```
 
 `demographic_group` is `total`, `female`, `male`, `infant`, `schoolage`,
-`working`, `childbearing`, or `elderly`. `infant` means children under 5.
+`working`, `childbearing`, or `elderly`. The age-based groups are `infant`
+(under 5), `schoolage` (5–14), `working` (15–64), `childbearing` (females aged
+15–49), and `elderly` (65 and over).
 `display_mode` is `absolute` with unit `people`, or `percentage` with unit
 `percent`. Every percentage uses total population as its denominator. A zero
 total-population denominator produces a blank value.
@@ -159,9 +159,11 @@ metric,demographic_group,unit,value
 ```
 
 `metric` is `count` with unit `facilities`, or `per_100k` with unit
-`facilities_per_100k_people`. Count has one `total` row per administrative
-area. Per-100,000 rows use each of the eight demographic groups above as the
-denominator. A zero denominator produces a blank rate.
+`facilities_per_100k_people`. Count uses the precomputed government hospital or
+school building summary and has one `total` row per administrative area.
+Per-100,000 rows use each of the eight demographic groups above as the
+denominator. A zero denominator produces a blank rate. If a facility summary
+is unavailable, its count and rate values are blank.
 
 ## Vulnerability
 
@@ -265,8 +267,10 @@ metric,unit,value
 `all`, `motorway`, `trunk`, `primary`, `secondary`, or `tertiary`; rail and
 power use `all`. A road class absent from a country source is written as zero.
 `epoch` is blank for the river-flood rows and `2020` for the tropical-cyclone
-row. `metric` is `direct_damage` and unit is `usd_per_year`. The current output
-has eight rows per administrative area: six river-flood road rows, one
+row. Each asset's expected annual damage is allocated to regions by the share
+of its line length intersecting each boundary. `metric` is `direct_damage`
+and unit is `usd_per_year`. The current output has eight rows per
+administrative area: six river-flood road rows, one
 river-flood rail row, and one tropical-cyclone power row.
 
 Indirect Impacts, Facilities, and Accessibility are supplied by deferred or

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import ceil, floor
 from pathlib import Path
 
 import geopandas as gpd
@@ -16,24 +15,19 @@ from rasterio.windows import Window
 from rasterio.windows import transform as window_transform
 from shapely.geometry import box, mapping
 
-from ..boundaries import load_admin_boundaries
-from ..config import PipelineConfig
-from ..outputs import (
-    CARD_IDENTIFIER_COLUMNS,
-    build_card_identifier_frame,
-    build_identifier_frame,
-    merge_metric_tables,
-    namespace_metric_table,
-    validate_card_output,
-    validate_section_output,
+from .utils import (
+    clipped_raster_window,
+    finalize_card_output,
+    metric_rows,
+    load_admin_boundaries,
+    PipelineConfig,
+    validate_spatial_admin_regions,
+    raster_window_cell_areas_km2,
 )
-from ..raster import raster_window_cell_areas_km2
 
 
 RIVER_FLOOD_RETURN_PERIODS = (10, 20, 50, 75, 100, 200, 500)
-RIVER_FLOOD_METRIC_NAMESPACE = "river_flood_jrc_baseline"
 TROPICAL_CYCLONE_RETURN_PERIODS = (10, 20, 50, 100, 200, 500, 1000)
-TROPICAL_CYCLONE_METRIC_NAMESPACE = "tropical_cyclone_storm_baseline_2020"
 TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS = {
     "tropical_storm_plus": 18.0,
     "cat1plus": 29.0,
@@ -101,17 +95,6 @@ def _require_tropical_cyclone_raster(
     return path
 
 
-def _validate_admin_regions(admin_regions: gpd.GeoDataFrame) -> None:
-    if admin_regions.crs is None:
-        raise ValueError("Administrative regions must have a CRS")
-    if admin_regions.empty:
-        raise ValueError("Administrative regions contain no rows")
-    if admin_regions["adm_id"].duplicated().any():
-        raise ValueError("Administrative regions contain duplicate IDs")
-    if admin_regions.geometry.isna().any() or admin_regions.geometry.is_empty.any():
-        raise ValueError("Administrative regions contain empty geometries")
-
-
 def _grid_from_source(source: rasterio.io.DatasetReader) -> _RasterGrid:
     if source.crs is None:
         raise ValueError(f"River-flood raster has no CRS: {source.name}")
@@ -135,28 +118,6 @@ def _validate_matching_grid(
         raise ValueError(f"River-flood raster shape does not match: {source.name}")
     if not source.transform.almost_equals(reference.transform):
         raise ValueError(f"River-flood raster grid does not match: {source.name}")
-
-
-def _clipped_window(
-    source: rasterio.io.DatasetReader,
-    bounds: tuple[float, float, float, float],
-) -> Window:
-    left, bottom, right, top = bounds
-    inverse = ~source.transform
-    first_col, first_row = inverse * (left, top)
-    last_col, last_row = inverse * (right, bottom)
-    col_start = max(0, floor(min(first_col, last_col)))
-    row_start = max(0, floor(min(first_row, last_row)))
-    col_stop = min(source.width, ceil(max(first_col, last_col)))
-    row_stop = min(source.height, ceil(max(first_row, last_row)))
-    if col_stop <= col_start or row_stop <= row_start:
-        raise ValueError(f"Administrative region does not overlap {source.name}")
-    return Window(
-        col_off=col_start,
-        row_off=row_start,
-        width=col_stop - col_start,
-        height=row_stop - row_start,
-    )
 
 
 def _admin_areas_km2(
@@ -217,7 +178,7 @@ def _summarize_admin_raster(
     p90_depths = np.zeros(len(regions), dtype="float64")
 
     for position, geometry in enumerate(regions.geometry):
-        window = _clipped_window(source, tuple(geometry.bounds))
+        window = clipped_raster_window(source, tuple(geometry.bounds))
         transform = window_transform(window, source.transform)
         depths = source.read(1, window=window)
         inside = geometry_mask(
@@ -336,7 +297,7 @@ def _admin_raster_intersection_weights(
     weighted_windows: list[tuple[Window, np.ndarray] | None] = []
     for geometry in regions.geometry:
         try:
-            window = _clipped_window(source, tuple(geometry.bounds))
+            window = clipped_raster_window(source, tuple(geometry.bounds))
         except ValueError:
             weighted_windows.append(None)
             continue
@@ -431,7 +392,7 @@ def build_river_flood_metrics(
     admin_regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     """Summarize JRC flood extent and depth for seven return periods."""
-    _validate_admin_regions(admin_regions)
+    validate_spatial_admin_regions(admin_regions)
     directory = config.source("river_flood_hazard_dir")
     metrics = admin_regions[["adm_id"]].copy()
     reference_path = _require_raster(
@@ -472,7 +433,7 @@ def build_tropical_cyclone_metrics(
     admin_regions: gpd.GeoDataFrame,
 ) -> pd.DataFrame:
     """Summarize area exceeding STORM wind-category thresholds."""
-    _validate_admin_regions(admin_regions)
+    validate_spatial_admin_regions(admin_regions)
     directory = config.source("tropical_cyclone_hazard_dir")
     metrics = admin_regions[["adm_id"]].copy()
     reference_path = _require_tropical_cyclone_raster(
@@ -510,159 +471,38 @@ def build_tropical_cyclone_metrics(
     return metrics
 
 
-def _format_river_flood_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    metric_specs = (
-        ("flooded_area", "km2", "flooded_area_rp{return_period}_km2"),
-        (
-            "area_flooded_percentage",
-            "percent",
-            "flooded_area_rp{return_period}_pct_admin",
-        ),
-        (
-            "mean_flood_depth",
-            "m",
-            "flood_depth_mean_rp{return_period}_m",
-        ),
-        (
-            "p90_flood_depth",
-            "m",
-            "flood_depth_p90_rp{return_period}_m",
-        ),
+def _river_flood_rows(metrics: pd.DataFrame) -> pd.DataFrame:
+    measures = (
+        ("flooded_area", "km2", "flooded_area_rp{period}_km2"),
+        ("area_flooded_percentage", "percent", "flooded_area_rp{period}_pct_admin"),
+        ("mean_flood_depth", "m", "flood_depth_mean_rp{period}_m"),
+        ("p90_flood_depth", "m", "flood_depth_p90_rp{period}_m"),
     )
-    parts: list[pd.DataFrame] = []
-    for return_period in RIVER_FLOOD_RETURN_PERIODS:
-        for metric_order, (metric, unit, template) in enumerate(metric_specs):
-            source_column = template.format(return_period=return_period)
-            part = metrics[["adm_id", source_column]].rename(
-                columns={source_column: "value"}
-            )
-            part["hazard"] = "river_flood"
-            part["model"] = "jrc"
-            part["scenario"] = "baseline"
-            part["return_period_years"] = return_period
-            part["metric"] = metric
-            part["unit"] = unit
-            part["_metric_order"] = metric_order
-            parts.append(part)
-
-    long_metrics = pd.concat(parts, ignore_index=True)
-    long_metrics["value"] = long_metrics["value"].round(3)
-    identifiers = build_card_identifier_frame(
-        admin_regions,
-        config,
-        section="hazard",
-        card=RIVER_FLOOD_CARD,
+    return metric_rows(
+        metrics,
+        [(source.format(period=period), dict(return_period_years=period, metric=metric, unit=unit))
+         for period in RIVER_FLOOD_RETURN_PERIODS
+         for metric, unit, source in measures],
+        hazard="river_flood", model="jrc", scenario="baseline",
     )
-    admin_order = {
-        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
-    }
-    output = identifiers.merge(
-        long_metrics,
-        on="adm_id",
-        how="left",
-        validate="one_to_many",
-    )
-    output["_admin_order"] = output["adm_id"].map(admin_order)
-    output = output.sort_values(
-        ["_admin_order", "return_period_years", "_metric_order"],
-        kind="stable",
-    ).drop(columns=["_admin_order", "_metric_order"])
-    output = output[
-        [*CARD_IDENTIFIER_COLUMNS, *RIVER_FLOOD_CARD_DIMENSIONS, "value"]
-    ].reset_index(drop=True)
-    validate_card_output(
-        output,
-        "hazard",
-        RIVER_FLOOD_CARD,
-        RIVER_FLOOD_CARD_DIMENSIONS,
-    )
-    return output
 
 
-def _format_tropical_cyclone_card_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    metrics: pd.DataFrame,
-) -> pd.DataFrame:
-    display_specs = (
-        ("area", "km2", "km2"),
-        ("percentage", "percent", "pct_admin"),
-    )
-    parts: list[pd.DataFrame] = []
-    for return_period in TROPICAL_CYCLONE_RETURN_PERIODS:
-        for threshold_order, (threshold, threshold_ms) in enumerate(
-            TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS.items()
-        ):
-            for display_order, (display_mode, unit, suffix) in enumerate(
-                display_specs
+def _cyclone_rows(metrics: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for period in TROPICAL_CYCLONE_RETURN_PERIODS:
+        for threshold, wind_speed in TROPICAL_CYCLONE_CATEGORY_THRESHOLDS_MS.items():
+            for display_mode, unit, suffix in (
+                ("area", "km2", "km2"), ("percentage", "percent", "pct_admin"),
             ):
-                source_column = (
-                    f"wind_area_{threshold}_rp{return_period}_{suffix}"
-                )
-                part = metrics[["adm_id", source_column]].rename(
-                    columns={source_column: "value"}
-                )
-                part["hazard"] = "tropical_cyclone"
-                part["model"] = "storm"
-                part["scenario"] = "baseline"
-                part["epoch"] = 2020
-                part["return_period_years"] = return_period
-                part["wind_threshold"] = threshold
-                part["wind_threshold_ms"] = threshold_ms
-                part["display_mode"] = display_mode
-                part["metric"] = "wind_area"
-                part["unit"] = unit
-                part["_threshold_order"] = threshold_order
-                part["_display_order"] = display_order
-                parts.append(part)
-
-    long_metrics = pd.concat(parts, ignore_index=True)
-    long_metrics["value"] = long_metrics["value"].round(3)
-    identifiers = build_card_identifier_frame(
-        admin_regions,
-        config,
-        section="hazard",
-        card=TROPICAL_CYCLONE_CARD,
+                rows.append((
+                    f"wind_area_{threshold}_rp{period}_{suffix}",
+                    dict(return_period_years=period, wind_threshold=threshold,
+                         wind_threshold_ms=wind_speed, display_mode=display_mode, unit=unit),
+                ))
+    return metric_rows(
+        metrics, rows, hazard="tropical_cyclone", model="storm",
+        scenario="baseline", epoch=2020, metric="wind_area",
     )
-    admin_order = {
-        adm_id: order for order, adm_id in enumerate(identifiers["adm_id"])
-    }
-    output = identifiers.merge(
-        long_metrics,
-        on="adm_id",
-        how="left",
-        validate="one_to_many",
-    )
-    output["_admin_order"] = output["adm_id"].map(admin_order)
-    output = output.sort_values(
-        [
-            "_admin_order",
-            "return_period_years",
-            "_threshold_order",
-            "_display_order",
-        ],
-        kind="stable",
-    ).drop(
-        columns=["_admin_order", "_threshold_order", "_display_order"]
-    )
-    output = output[
-        [
-            *CARD_IDENTIFIER_COLUMNS,
-            *TROPICAL_CYCLONE_CARD_DIMENSIONS,
-            "value",
-        ]
-    ].reset_index(drop=True)
-    validate_card_output(
-        output,
-        "hazard",
-        TROPICAL_CYCLONE_CARD,
-        TROPICAL_CYCLONE_CARD_DIMENSIONS,
-    )
-    return output
 
 
 def build_hazard_card_metrics(
@@ -672,75 +512,11 @@ def build_hazard_card_metrics(
     """Build the two tidy downloadable Hazard card tables."""
     if admin_regions is None:
         admin_regions = load_admin_boundaries(config)
-    river_flood_metrics = build_river_flood_metrics(config, admin_regions)
-    tropical_cyclone_metrics = build_tropical_cyclone_metrics(
-        config,
-        admin_regions,
-    )
-    return {
-        RIVER_FLOOD_CARD: _format_river_flood_card_metrics(
-            config,
-            admin_regions,
-            river_flood_metrics,
-        ),
-        TROPICAL_CYCLONE_CARD: _format_tropical_cyclone_card_metrics(
-            config,
-            admin_regions,
-            tropical_cyclone_metrics,
-        ),
+    cards = {
+        RIVER_FLOOD_CARD: _river_flood_rows(build_river_flood_metrics(config, admin_regions)),
+        TROPICAL_CYCLONE_CARD: _cyclone_rows(build_tropical_cyclone_metrics(config, admin_regions)),
     }
-
-
-def assemble_hazard_run_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame,
-    metric_tables: list[pd.DataFrame],
-    metric_namespace: str,
-) -> pd.DataFrame:
-    """Add identifiers and namespace one hazard run's metric tables."""
-    identifiers = build_identifier_frame(
-        admin_regions,
-        config,
-        section="hazard",
-    )
-    namespaced_tables = [
-        namespace_metric_table(metrics, metric_namespace)
-        for metrics in metric_tables
-    ]
-    output = merge_metric_tables(identifiers, namespaced_tables)
-    validate_section_output(output, "hazard")
-    return output
-
-
-def build_hazard_metrics(
-    config: PipelineConfig,
-    admin_regions: gpd.GeoDataFrame | None = None,
-) -> pd.DataFrame:
-    """Build river-flood and tropical-cyclone Hazard metrics."""
-    if admin_regions is None:
-        admin_regions = load_admin_boundaries(config)
-    river_flood_metrics = build_river_flood_metrics(config, admin_regions)
-    tropical_cyclone_metrics = build_tropical_cyclone_metrics(
-        config,
-        admin_regions,
-    )
-    identifiers = build_identifier_frame(
-        admin_regions,
-        config,
-        section="hazard",
-    )
-    output = merge_metric_tables(
-        identifiers,
-        [
-            namespace_metric_table(
-                river_flood_metrics,
-                RIVER_FLOOD_METRIC_NAMESPACE,
-            ),
-            namespace_metric_table(
-                tropical_cyclone_metrics,
-                TROPICAL_CYCLONE_METRIC_NAMESPACE,
-            ),
-        ],
-    )
-    validate_section_output(output, "hazard")
-    return output
+    return {
+        card: finalize_card_output(rows, config, admin_regions, "hazard", card, HAZARD_CARD_DIMENSIONS[card])
+        for card, rows in cards.items()
+    }

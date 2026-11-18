@@ -15,11 +15,12 @@ Store local input CSVs under:
 data/raw/<ISO3>/concentration_curves/
 ```
 
-Raw files are ignored by Git. One-off curves are registered explicitly in the
-country's TOML file. Repeated scenario families may instead use a batch
-registry with a constrained glob and a full-match filename regular expression.
-Only a batch registry opts into deriving identifiers from filenames; unrelated
-CSVs are never loaded automatically.
+The registry in `config/defaults.toml` covers the standard JRC flood-risk
+files. `{iso3}` in that file expands to the selected country code. For other
+inputs, define `concentration_curves`, `concentration_curve_sets`, or both in
+the country file. These entries replace the entire standard registry for that
+country. Batch entries use a constrained glob and a full-match filename
+regular expression to derive identifiers.
 
 Each input must contain at least two configured numeric columns:
 
@@ -50,7 +51,8 @@ does not silently reconstruct or resample an already supplied curve.
 
 ## Explicit registry
 
-Register each curve in `config/countries/<ISO3>.toml`:
+To register an individual curve in a custom registry, add an entry to
+`config/countries/<ISO3>.toml`:
 
 ```toml
 [concentration_curves.flood_risk__jrc__baseline_protected]
@@ -102,7 +104,7 @@ y_column = "frac_flood"
 ranked_by = "relative_wealth"
 rank_direction = "lowest_to_highest"
 description_template = "Cumulative share of relocation-adapted JRC river-flood risk for {duc} by cumulative population share."
-expected_count = 6
+expected_count = 7
 ```
 
 A flood-protection family with two filename dimensions uses two captures:

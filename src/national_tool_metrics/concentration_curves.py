@@ -1,32 +1,20 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 
 import numpy as np
 import pandas as pd
 
-from .config import ConcentrationCurveConfig, PipelineConfig
-from .tables import validate_columns
+from .utils import (
+    ConcentrationCurveConfig,
+    PipelineConfig,
+    validate_columns,
+    validate_curve_id,
+)
 
 
 SHARED_X_COLUMN = "cumulative_population_share"
-CURVE_ID_PATTERN = re.compile(
-    r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*"
-    r"__[a-z][a-z0-9]*(?:_[a-z0-9]+)*"
-    r"__[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
-)
 NUMERIC_TOLERANCE = 1e-9
-
-
-def validate_curve_id(curve_id: str) -> None:
-    """Require ``indicator__model-or-source__scenario`` identifiers."""
-    if not CURVE_ID_PATTERN.fullmatch(curve_id):
-        raise ValueError(
-            "Concentration-curve identifiers must contain three lowercase "
-            "double-underscore-separated components: "
-            f"<indicator>__<model-or-source>__<scenario>; found {curve_id!r}"
-        )
 
 
 def load_concentration_curve(
